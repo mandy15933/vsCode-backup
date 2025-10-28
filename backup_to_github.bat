@@ -1,15 +1,15 @@
 @echo off
-:: ====== GitHub è‡ªå‹•å‚™ä»½æ‰¹æ¬¡æª” (ç¹é«”ä¸­æ–‡ç‰ˆä¿®æ­£ç‰ˆ) ======
-:: å°‡ä»¥ä¸‹è·¯å¾‘æ”¹æˆä½ çš„å°ˆæ¡ˆè³‡æ–™å¤¾
+:: ====== GitHub ¦Û°Ê³Æ¥÷§å¦¸ÀÉ (ÁcÅé¤¤¤åª©­×¥¿ª©) ======
+:: ±N¥H¤U¸ô®|§ï¦¨§Aªº±M®×¸ê®Æ§¨
 cd /d "C:\xampp\htdocs"
 
-:: æª¢æŸ¥ Git ç‹€æ…‹
+:: ÀË¬d Git ª¬ºA
 git status
 
-:: æ–°å¢å…¨éƒ¨ä¿®æ”¹
+:: ·s¼W¥ş³¡­×§ï
 git add .
 
-:: è‡ªå‹•å»ºç«‹ commitï¼Œä½¿ç”¨å®‰å…¨æ ¼å¼çš„æ™‚é–“æˆ³
+:: ¦Û°Ê«Ø¥ß commit¡A¨Ï¥Î¦w¥ş®æ¦¡ªº®É¶¡ÂW
 setlocal enabledelayedexpansion
 for /f "tokens=1-3 delims=/- " %%a in ('date /t') do (
     set mydate=%%a-%%b-%%c
@@ -19,12 +19,12 @@ for /f "tokens=1-2 delims=: " %%a in ('time /t') do (
 )
 git commit -m "Auto backup on %mydate%_%mytime%"
 
-:: ä¸Šå‚³åˆ° GitHub
+:: ¤W¶Ç¨ì GitHub
 git push
 
-:: ï¼ˆå¯é¸ï¼‰ä¸Šå‚³å¾Œè‡ªå‹•é–‹å•Ÿ GitHub é é¢
+:: ¡]¥i¿ï¡^¤W¶Ç«á¦Û°Ê¶}±Ò GitHub ­¶­±
 start https://github.com/mandy15933/vsCode-backup
 
 echo.
-echo âœ… å°ˆæ¡ˆå·²æˆåŠŸå‚™ä»½åˆ° GitHubï¼
+echo ? ±M®×¤w¦¨¥\³Æ¥÷¨ì GitHub¡I
 pause
