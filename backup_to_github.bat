@@ -26,5 +26,5 @@ git push
 start https://github.com/mandy15933/vsCode-backup
 
 echo.
-echo ? 專案已成功備份到 GitHub！
+echo  專案已成功備份到 GitHub！
 pause
