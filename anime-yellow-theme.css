@@ -1,0 +1,122 @@
+/* 字體選擇：日系動漫常見風格字體 */
+body {
+  font-family: "Segoe UI", "Noto Sans TC", "Comic Sans MS", sans-serif;
+  background: #fffde7; /* 柔和的奶油黃 */
+  color: #4e342e;
+  line-height: 1.6;
+}
+
+/* 導覽列：鮮明的亮黃色 + 陰影 */
+.navbar {
+  background: linear-gradient(to right, #ffeb3b, #ffd600);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.navbar-brand {
+  font-weight: bold;
+  font-size: 1.5rem;
+  color: #4e342e;
+}
+
+/* 卡片風格：卡通風格圓角、柔和邊框與浮出感 */
+.chapter-card {
+  border-radius: 20px;
+  overflow: hidden;
+  border: 3px solid #fff59d;
+  background: #fff9c4;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+}
+
+.chapter-card:hover {
+  transform: scale(1.05);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+/* 卡片圖片：高飽和度視覺，卡通風格框 */
+.chapter-img {
+  height: 160px;
+  object-fit: cover;
+  border-bottom: 4px solid #ffd54f;
+}
+
+/* 按鈕樣式：更明亮更立體 */
+.btn-warning {
+  background: linear-gradient(to top, #ffc107, #ffe082);
+  border: 3px solid #ffb300;
+  color: #4e342e;
+  font-weight: bold;
+  border-radius: 12px;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.6), 0 6px 0 #ff8f00,
+    0 8px 15px rgba(0, 0, 0, 0.2);
+  transition: all 0.1s ease-in-out;
+  position: relative;
+  padding: 0.6rem 1.2rem;
+}
+
+.btn-warning:active {
+  top: 2px;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.5), 0 2px 0 #ff8f00,
+    0 4px 6px rgba(0, 0, 0, 0.2);
+  background: linear-gradient(to top, #ffb300, #ffd54f);
+}
+
+.btn-warning:hover {
+  background-color: #ffb300;
+  color: #3e2723;
+  transform: translateY(-2px);
+}
+
+.btn-secondary {
+  background: linear-gradient(to top, #d7ccc8, #efebe9);
+  border: 2px solid #8d6e63;
+  color: #3e2723;
+  font-weight: bold;
+  border-radius: 12px;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.6), 0 6px 0 #a1887f,
+    0 8px 15px rgba(0, 0, 0, 0.2);
+  transition: all 0.1s ease-in-out;
+  position: relative;
+}
+
+.btn-secondary:active {
+  top: 2px;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.5), 0 2px 0 #a1887f,
+    0 4px 6px rgba(0, 0, 0, 0.2);
+  background: linear-gradient(to top, #bcaaa4, #d7ccc8);
+}
+
+.btn-secondary:hover {
+  background-color: #a1887f;
+}
+
+/* Modal 樣式 */
+.modal-content {
+  border-radius: 20px;
+  border: 4px solid #ffe082;
+  background-color: #fffde7;
+}
+
+.modal-header {
+  border-bottom: none;
+}
+
+.form-control {
+  border-radius: 12px;
+  border: 2px solid #ffe082;
+}
+
+/* Footer */
+footer {
+  background-color: #fff9c4;
+  padding: 1rem 0;
+  color: #6d4c41;
+  font-size: 0.9rem;
+}
+
+/* 過場動畫 */
+.card,
+.modal-content,
+.btn {
+  transition: all 0.3s ease;
+}
