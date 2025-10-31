@@ -1,28 +1,39 @@
 <?php
 require 'db.php';
 
-$student_id = $_POST['student_id'] ?? '';
-$username = $_POST['username'] ?? '';
-$password = $_POST['password'] ?? '';
+// 取得表單資料
+$studentID  = $_POST['student_id'] ?? '';
+$username   = $_POST['username'] ?? '';
+$password   = $_POST['password'] ?? '';
 $class_name = $_POST['class_name'] ?? '';
 
-if (!$student_id || !$username || !$password || !$class_name) {
-    echo json_encode(['success' => false, 'message' => '所有欄位皆為必填']);
+if (empty($studentID) || empty($username) || empty($password)) {
+    echo json_encode(["success" => false, "message" => "請完整填寫所有欄位"]);
     exit;
 }
 
-$stmt = $conn->prepare("SELECT * FROM Users WHERE StudentID=?");
-$stmt->bind_param("s", $student_id);
-$stmt->execute();
-
-if ($stmt->get_result()->num_rows > 0) {
-    echo json_encode(['success'=>false, 'message'=>'學號已存在']);
+// 檢查學號是否重複
+$check = $conn->prepare("SELECT * FROM users WHERE StudentID = ?");
+$check->bind_param("s", $studentID);
+$check->execute();
+if ($check->get_result()->num_rows > 0) {
+    echo json_encode(["success" => false, "message" => "此學號已註冊"]);
     exit;
 }
 
+// 建立加密密碼
 $hash = password_hash($password, PASSWORD_DEFAULT);
-$stmt = $conn->prepare("INSERT INTO Users (StudentID, Username, PasswordHash, ClassName) VALUES (?, ?, ?, ?)");
-$stmt->bind_param("ssss", $student_id, $username, $hash, $class_name);
-$stmt->execute();
 
-echo json_encode(['success'=>true]);
+// 插入資料
+$stmt = $conn->prepare("INSERT INTO users (StudentID, Username, PasswordHash, ClassName, role) VALUES (?, ?, ?, ?, 'student')");
+$stmt->bind_param("ssss", $studentID, $username, $hash, $class_name);
+
+if ($stmt->execute()) {
+    echo json_encode(["success" => true, "message" => "註冊成功"]);
+} else {
+    echo json_encode(["success" => false, "message" => "註冊失敗：" . $conn->error]);
+}
+
+$stmt->close();
+$conn->close();
+?>

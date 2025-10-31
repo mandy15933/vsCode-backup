@@ -2,23 +2,26 @@
 session_start();
 require 'db.php';
 
-$login_id = $_POST['login_id'] ?? '';
-$password = $_POST['password'] ?? '';
+$studentID = $_POST['student_id'] ?? '';
+$password  = $_POST['password'] ?? '';
 
-$stmt = $conn->prepare("SELECT * FROM Users WHERE StudentID=? OR Username=?");
-$stmt->bind_param("ss", $login_id, $login_id);
+if (empty($studentID) || empty($password)) {
+    echo json_encode(["success" => false, "message" => "請輸入學號與密碼"]);
+    exit;
+}
+
+$stmt = $conn->prepare("SELECT * FROM users WHERE StudentID = ?");
+$stmt->bind_param("s", $studentID);
 $stmt->execute();
-$user = $stmt->get_result()->fetch_assoc();
+$result = $stmt->get_result();
+$user = $result->fetch_assoc();
 
 if ($user && password_verify($password, $user['PasswordHash'])) {
     $_SESSION['user_id'] = $user['UserID'];
     $_SESSION['username'] = $user['Username'];
     $_SESSION['class_name'] = $user['ClassName'];
-    echo json_encode([
-        'success'=>true, 
-        'username'=>$user['Username'],
-        'class_name'=>$user['ClassName']
-    ]);
+    $_SESSION['role'] = $user['role'];
+    echo json_encode(["success" => true, "message" => "登入成功"]);
 } else {
-    echo json_encode(['success'=>false, 'message'=>'學號或密碼錯誤']);
+    echo json_encode(["success" => false, "message" => "學號或密碼錯誤"]);
 }
