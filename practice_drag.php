@@ -4,7 +4,7 @@ session_start();
 require 'db.php';
 
 // 🔹 手動控制實驗週次
-$week = 1;   // 第一週：只顯示拖曳 + 測資
+$week = 2;   // 第一週：只顯示拖曳 + 測資
 // $week = 2;   // 第二週：開放心智圖與流程圖
 
 
@@ -174,15 +174,16 @@ $isPassed = ($isPassedRow && $isPassedRow['is_correct'] == 1);
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Chiron+GoRound+TC:wght@200..900&display=swap" rel="stylesheet">
     <audio id="soundClick" src="sounds/click.mp3" preload="auto"></audio>
-    <audio id="soundClick2" src="sounds/click2.mp3" preload="auto"></audio>
+    <audio id="soundClick2" src="sounds/click2.mp3?v=1" preload="auto"></audio>
     <audio id="soundSuccess" src="sounds/success.mp3" preload="auto"></audio>
     <audio id="soundError" src="sounds/error.mp3?v=1" preload="auto"></audio>
-    <audio id="soundHover" src="sounds/hover.mp3" preload="auto"></audio>
+    <audio id="soundHover" src="sounds/hover.mp3?v=1" preload="auto"></audio>
     <audio id="soundSelect" src="sounds/select.mp3" preload="auto"></audio>
-    <audio id="soundIndent" src="sounds/indent.mp3" preload="auto"></audio>
+    <audio id="soundIndent" src="sounds/indent.mp3?v=1" preload="auto"></audio>
     <audio id="soundOutdent" src="sounds/outdent.mp3" preload="auto"></audio>
     <audio id="soundCorrect" src="sounds/correct.mp3" preload="auto"></audio>
-    <link rel="stylesheet" href="style_practice_drag.css?v=1.0">
+    <audio id="soundMove" src="sounds/move.mp3?v=1" preload="auto"></audio>
+    <link rel="stylesheet" href="style_practice_drag.css?v=2.0">
 </head>
 <body>
 <?php include 'Navbar.php'; ?>
@@ -242,6 +243,7 @@ $isPassed = ($isPassedRow && $isPassedRow['is_correct'] == 1);
     <div class="row">
         <!-- 題目區 -->
         <div class="col-12 mb-3">
+            
             <div class="card border-warning shadow-sm">
                 <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
                     <h4 class="mb-0">📝 題目：<?= htmlspecialchars($question['title']) ?></h4>
@@ -250,6 +252,7 @@ $isPassed = ($isPassedRow && $isPassedRow['is_correct'] == 1);
                     <?php else: ?>
                         <span class="badge bg-secondary fs-6">⏳ 尚未通過</span>
                     <?php endif; ?>
+                    
                 </div>
                 <div class="card-body">
                     <p class="fs-5 mt-2"><?= nl2br(htmlspecialchars($question['description'])) ?></p>
@@ -261,9 +264,13 @@ $isPassed = ($isPassedRow && $isPassedRow['is_correct'] == 1);
         <!-- 左側：拖曳排序 -->
         <div class="col-lg-6 mb-3">
             <div class="card border-dark shadow-sm">
-                <div class="card-header bg-dark text-white">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">💻 拖曳程式碼區域</h5>
+                    <button id="themeToggle" class="btn btn-outline-light btn-sm" type="button">
+                        🌙 深色
+                    </button>
                 </div>
+
                 <div class="card-body">
                     <p class="text-muted small">
                         你的章節平均嘗試次數：<?= round($avgAttempts,2) ?>  
@@ -390,7 +397,6 @@ hljs.highlightAll();
 let selectedLine = null;
 new Sortable(codeList, {
   animation: 150,
-  onStart: () => playSound("soundClick", 0.5),
   onEnd: () => playSound("soundMove", 0.3)
 });
 codeList.addEventListener("click", e => {
@@ -408,13 +414,13 @@ const outdentBtn = document.getElementById("outdentBtn");
 function addButtonEffect(btnId) {
     const btn = document.getElementById(btnId);
     btn.classList.add("btn-animate");
-    playSound("soundClick", 0.5); // 🔊 播放點擊音
     setTimeout(() => btn.classList.remove("btn-animate"), 300); // 移除動畫 class
 }
 
 indentBtn.addEventListener("click", () => {
     if (!selectedLine) return;
     addButtonEffect("indentBtn"); // 🪄 動畫＋音效
+    playSound("soundOutdent", 0.5);
 
     let indent = parseInt(selectedLine.getAttribute("data-indent")) || 0;
     if (indent >= 5) {
@@ -433,6 +439,7 @@ indentBtn.addEventListener("click", () => {
 outdentBtn.addEventListener("click", () => {
     if (!selectedLine) return;
     addButtonEffect("outdentBtn"); // 🪄 動畫＋音效
+    playSound("soundIndent", 0.5);
 
     let indent = parseInt(selectedLine.getAttribute("data-indent")) || 0;
     if (indent <= 0) {
@@ -457,10 +464,12 @@ document.addEventListener("keydown", e => {
         if (e.shiftKey) {
             // 反縮排
             let indent = parseInt(selectedLine.getAttribute("data-indent"));
+            playSound("soundOutdent", 0.5);
             if (indent > 0) selectedLine.setAttribute("data-indent", indent - 1);
         } else {
             // 縮排
             let indent = parseInt(selectedLine.getAttribute("data-indent"));
+            playSound("soundIndent", 0.5);
             selectedLine.setAttribute("data-indent", indent + 1);
         }
     }
@@ -475,13 +484,13 @@ let lastHoverTime = 0; // 防止 hover 音效太密集
 
 new Sortable(codeList, { 
     animation: 150,
-    onStart: () => playSound("soundClick"), // 拖曳開始音效
+    onStart: () => playSound("soundHover"), // 拖曳開始音效
 
     onMove: (evt) => {
         // 限制音效播放頻率，避免過於頻繁
         const now = Date.now();
         if (now - lastHoverTime > 120) { // 每 0.12 秒才允許播放一次
-            playSound("soundHover", 0.25);
+            playSound("soundMove", 0.25);
             lastHoverTime = now;
         }
     },
@@ -727,27 +736,6 @@ function renderFlowchartWithInteraction(rawData) {
 
 
 
-
-
-
-
-
-
-
-
-
-
-// === 🪄 初始化：頁面載入自動渲染 ===
-document.addEventListener("DOMContentLoaded", () => {
-    const week = <?= $week ?>;
-    if (week >= 2) {
-        if (mindmapData) renderMindmap(mindmapData);
-        if (flowchartData) renderFlowchartWithInteraction(flowchartData);
-    }
-});
-
-
-
 // 監聽 Tab 切換 → 紀錄學生操作
 function logAction(action) {
     fetch("log_action.php", {
@@ -799,7 +787,7 @@ if (mindmapTab) {
 const flowchartTab = document.getElementById("flowchart-tab");
 if (flowchartTab) {
     flowchartTab.addEventListener("shown.bs.tab", (e) => {
-        playSound("soundSelect", 0.6);
+        playSound("soundClick2", 0.6);
         bounceTab(e.target);
         renderFlowchartWithInteraction(flowchartData);
         flowchartClicks++;
@@ -816,6 +804,7 @@ if (submitBtn) {
     submitBtn.addEventListener("click", () => {
         let checkResult = compareCodeOrder();  
         let isCorrect = checkResult.result;
+        playSound("soundClick", 0.6);
 
         // 計算作答時間（秒）
         let timeSpent = Math.floor((Date.now() - startTime) / 1000);
@@ -1041,6 +1030,54 @@ function compareCodeOrder() {
         return { result: false, message: "💡 程式順序與縮排都有錯誤，請再試一次！" };
     }
 }
+
+
+// === 🌗 深色模式切換功能 (最終版) ===
+(function(){
+  const STORAGE_KEY = 'theme';
+  const btn = document.getElementById('themeToggle');
+  const htmlEl = document.documentElement; // 切在 <html>
+
+  // 套用主題
+  function applyTheme(mode){
+    if(mode === 'dark'){
+      htmlEl.setAttribute('data-theme', 'dark');
+      if(btn){
+        btn.classList.remove('btn-outline-dark');
+        btn.classList.add('btn-outline-light');
+        btn.innerText = '☀️ 淺色';
+      }
+    } else {
+      htmlEl.removeAttribute('data-theme');
+      if(btn){
+        btn.classList.remove('btn-outline-light');
+        btn.classList.add('btn-outline-dark');
+        btn.innerText = '🌙 深色';
+      }
+    }
+  }
+
+  // 初始載入（localStorage > 系統偏好 > 預設亮）
+  const saved = localStorage.getItem(STORAGE_KEY);
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const theme = saved || (prefersDark ? 'dark' : 'light');
+  applyTheme(theme);
+
+  // 切換
+  btn?.addEventListener('click', () => {
+    const now = htmlEl.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    const next = now === 'dark' ? 'light' : 'dark';
+    localStorage.setItem(STORAGE_KEY, next);
+    applyTheme(next);
+  });
+
+  // 跟隨系統偏好變化（如果使用者沒手動選過）
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+    if(!localStorage.getItem(STORAGE_KEY)){
+      applyTheme(e.matches ? 'dark' : 'light');
+    }
+  });
+})();
 
 
 

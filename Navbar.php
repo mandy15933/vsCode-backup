@@ -39,6 +39,11 @@ $role       = $_SESSION['role'] ?? 'student'; // 預設學生
           <button class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#loginModal">登入</button>
           <button class="btn btn-dark btn-sm ms-2" data-bs-toggle="modal" data-bs-target="#registerModal">註冊</button>
         <?php endif; ?>
+        <!-- 在 Navbar 裡的右側區域加入 -->
+        <button id="themeToggle" class="btn btn-outline-dark btn-sm ms-2" type="button">
+          🌙 深色
+        </button>
+
       </div>
     </div>
   </div>
