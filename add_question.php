@@ -436,6 +436,31 @@ document.getElementById("btnGenerateAI").addEventListener("click", () => {
   });
 });
 
+
+document.querySelector("form").addEventListener("submit", function(e) {
+  // 1️⃣ 組合測資
+  const rows = document.querySelectorAll("#testcaseTable tbody tr");
+  const testCases = [];
+  rows.forEach(row => {
+    const inputs = row.querySelectorAll("textarea");
+    const inputVal = inputs[0]?.value.trim();
+    const outputVal = inputs[1]?.value.trim();
+    if (inputVal && outputVal) testCases.push({ input: inputVal, output: outputVal });
+  });
+  document.getElementById("test_cases_input").value = JSON.stringify(testCases, null, 2);
+
+  // 2️⃣ 組合程式碼
+  const codeLines = document.getElementById("codeLinesInput").value.trim().split("\n");
+  document.getElementById("code_lines_hidden").value = JSON.stringify(codeLines, null, 2);
+
+  // 3️⃣ 檢查測資數量
+  if (testCases.length < 2) {
+    e.preventDefault();
+    alert("⚠️ 請至少新增兩組測資！");
+  }
+});
+
+
 </script>
 </body>
 </html>

@@ -8,7 +8,7 @@ $className = $_SESSION['class_name'] ?? '';
 $role = $_SESSION['role'] ?? 'student';
 
 // 取得章節資料
-$sql = "SELECT id, title, description, image_path FROM chapters ORDER BY id";
+$sql = "SELECT id, title, image_path FROM chapters ORDER BY id";
 $result = $conn->query($sql);
 ?>
 
@@ -186,7 +186,7 @@ body {
         <!-- 📜 章節內容 -->
         <div class="card-body text-center">
           <h5 class="card-title fw-bold text-dark"><?= htmlspecialchars($row['title']) ?></h5>
-          <p class="card-text text-muted small"><?= htmlspecialchars($row['description'] ?? '') ?></p>
+
 
           <!-- 🧭 登入後顯示教材／練習 -->
           <?php if ($isLoggedIn): ?>
@@ -194,7 +194,7 @@ body {
               <a href="material.php?chapter=<?= $row['id'] ?>" class="btn btn-outline-dark flex-fill">
                 📖 學習教材
               </a>
-              <a href="practice_list.php?chapter=<?= $row['id'] ?>" class="btn btn-warning flex-fill">
+              <a href="practice_drag.php?chapter=<?= $row['id'] ?>" class="btn btn-warning flex-fill">
                 💻 程式練習
               </a>
             </div>

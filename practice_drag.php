@@ -185,7 +185,7 @@ $isPassed = ($isPassedRow && $isPassedRow['is_correct'] == 1);
     <link rel="stylesheet" href="style_practice_drag.css?v=1.0">
 </head>
 <body>
-<?php include 'Navbar_User.php'; ?>
+<?php include 'Navbar.php'; ?>
 
 <div class="container mt-3">
     <div class="card shadow-sm mb-4 border-warning">
