@@ -26,7 +26,7 @@ $role       = $_SESSION['role'] ?? 'student'; // 預設學生
         <?php else: ?>
           <li class="nav-item"><a class="nav-link" href="index.php">🏠 首頁</a></li>
           <li class="nav-item"><a class="nav-link" href="courses.php">🧩 單元列表</a></li>
-          <li class="nav-item"><a class="nav-link" href="quiz.php">💬 測驗區</a></li>
+          <li class="nav-item"><a class="nav-link" href="quiz_select.php">💬 測驗區</a></li>
           <li class="nav-item"><a class="nav-link" href="progress.php">📈 學習進度</a></li>
         <?php endif; ?>
       </ul>
@@ -39,10 +39,7 @@ $role       = $_SESSION['role'] ?? 'student'; // 預設學生
           <button class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#loginModal">登入</button>
           <button class="btn btn-dark btn-sm ms-2" data-bs-toggle="modal" data-bs-target="#registerModal">註冊</button>
         <?php endif; ?>
-        <!-- 在 Navbar 裡的右側區域加入 -->
-        <button id="themeToggle" class="btn btn-outline-dark btn-sm ms-2" type="button">
-          🌙 深色
-        </button>
+ 
 
       </div>
     </div>

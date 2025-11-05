@@ -100,7 +100,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['title'])) {
 
 <!-- AI 生成區 -->
 <div class="mb-4">
-  <h5>🤖 AI 生成題目</h5>
+  <h5>🤖 AI 生成工具</h5>
+
+  <!-- 第一步 -->
   <div class="d-flex flex-wrap gap-2 mb-2">
     <select id="aiChapter" class="form-select" style="width:auto">
       <option value="">請選擇章節</option>
@@ -113,13 +115,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['title'])) {
       <option value="中等">中等</option>
       <option value="困難">困難</option>
     </select>
-    <button type="button" class="btn btn-secondary" id="btnGenerateAI">AI 生成</button>
+    <button type="button" class="btn btn-secondary" id="btnGenerateBasic">① 生成題目內容</button>
   </div>
+
+  <!-- 第二步 -->
+  <div class="d-flex flex-wrap gap-2 mb-2">
+    <button type="button" class="btn btn-info" id="btnGenerateVisuals">② 生成心智圖與流程圖</button>
+  </div>
+
   <div id="loadingSpinner" class="text-primary mt-2" style="display:none;">
     <div class="spinner-border spinner-border-sm" role="status"></div>
     <span> 正在生成中…</span>
   </div>
 </div>
+
 
 <hr>
 
@@ -289,31 +298,57 @@ document.querySelector("form").addEventListener("submit", function(e) {
 
 
 function updateFlowchart(containerId, flowchartData) {
-  console.log("🧩 Flowchart Data:", flowchartData); // 可觀察結構
   const container = document.getElementById(containerId);
   container.innerHTML = "";
 
-  if (!flowchartData || !flowchartData.nodes || !flowchartData.edges) {
-    container.innerHTML = "<div class='text-danger p-2'>⚠️ 流程圖資料格式錯誤或為 null</div>";
+  // 🔒 基本檢查
+  if (!flowchartData || !Array.isArray(flowchartData.nodes) || !Array.isArray(flowchartData.edges)) {
+    container.innerHTML = "<div class='text-danger p-2'>⚠️ 流程圖資料結構錯誤（nodes 或 edges 為 null）</div>";
+    console.error("❌ 無效流程圖資料：", flowchartData);
     return;
   }
 
+  // 🔍 檢查節點 id 是否重複
+  const nodeIds = new Set();
+  for (const node of flowchartData.nodes) {
+    if (!node.id) {
+      console.warn("⚠️ 節點缺少 id：", node);
+      continue;
+    }
+    if (nodeIds.has(node.id)) {
+      console.error("⚠️ 重複的節點 id：", node.id);
+    }
+    nodeIds.add(node.id);
+  }
+
+  // 🔍 檢查 edges 是否連到不存在的節點
+  for (const edge of flowchartData.edges) {
+    if (!nodeIds.has(edge.from) || !nodeIds.has(edge.to)) {
+      console.error("⚠️ 無效連線：", edge);
+    }
+  }
+
+  // 🧩 組合 flowchart.js 語法
   let def = "";
   flowchartData.nodes.forEach(n => {
-    const t = (n.type || "").toLowerCase();
-    if (t === "start") def += `${n.id}=>start: ${n.text}\n`;
-    else if (t === "end") def += `${n.id}=>end: ${n.text}\n`;
-    else if (t === "io") def += `${n.id}=>inputoutput: ${n.text}\n`;
-    else if (t === "decision") def += `${n.id}=>condition: ${n.text}\n`;
-    else def += `${n.id}=>operation: ${n.text}\n`;
+    if (!n || !n.id || !n.type) return;
+    const t = n.type.toLowerCase();
+    if (t === "start") def += `${n.id}=>start: ${n.text || "開始"}\n`;
+    else if (t === "end") def += `${n.id}=>end: ${n.text || "結束"}\n`;
+    else if (t === "io") def += `${n.id}=>inputoutput: ${n.text || ""}\n`;
+    else if (t === "decision") def += `${n.id}=>condition: ${n.text || ""}\n`;
+    else def += `${n.id}=>operation: ${n.text || ""}\n`;
   });
 
   flowchartData.edges.forEach(e => {
+    if (!e.from || !e.to) return;
     const lbl = (e.label || "").toLowerCase();
     if (lbl === "yes" || lbl === "是") def += `${e.from}(yes)->${e.to}\n`;
     else if (lbl === "no" || lbl === "否") def += `${e.from}(no)->${e.to}\n`;
     else def += `${e.from}->${e.to}\n`;
   });
+
+  console.log("🧩 Flowchart 定義：\n" + def);
 
   try {
     const chart = flowchart.parse(def);
@@ -332,14 +367,16 @@ function updateFlowchart(containerId, flowchartData) {
       }
     });
   } catch (err) {
-    console.error("流程圖解析失敗:", err, def);
-    container.innerHTML = "<div class='text-danger p-2'>⚠️ 無法繪製流程圖</div>";
+    console.error("❌ 流程圖解析失敗：", err);
+    console.log("📄 def 內容：\n" + def);
+    container.innerHTML = "<div class='text-danger p-2'>⚠️ 流程圖解析失敗，請檢查節點與連線。</div>";
   }
 }
 
 
 
-document.getElementById("btnGenerateAI").addEventListener("click", () => {
+
+document.getElementById("btnGenerateBasic").addEventListener("click", () => {
   const chapter = document.getElementById("aiChapter").value;
   const difficulty = document.getElementById("aiDifficulty").value;
   if (!chapter || !difficulty) {
@@ -347,94 +384,117 @@ document.getElementById("btnGenerateAI").addEventListener("click", () => {
     return;
   }
 
-  document.getElementById("btnGenerateAI").disabled = true;
+  document.getElementById("btnGenerateBasic").disabled = true;
   document.getElementById("loadingSpinner").style.display = "block";
 
-  fetch("generate_question.php", {
+  fetch("generate_question_basic.php", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ chapter, difficulty })
   })
-  .then(res => res.json())
-  .then(data => {
-    if (data.error) {
-      alert("❌ 失敗：" + data.error);
+  .then(res => res.text()) // ✅ 改成 text()，避免 HTML 出錯
+  .then(txt => {
+    let data;
+    try {
+      data = JSON.parse(txt);
+    } catch (err) {
+      console.error("⚠️ 非 JSON 回應：", txt);
+      alert("伺服器回傳非 JSON，請查看 console。");
       return;
     }
 
-    // 填入表單
+    if (data.error) {
+      alert("❌ " + data.error);
+      return;
+    }
+
+    // ✅ 填入基本題目資料
     document.getElementById("titleInput").value = data.title || "";
     document.getElementById("descInput").value = data.description || "";
     document.getElementById("difficultyInput").value = difficulty;
     document.getElementById("chapterInput").value = chapter;
 
-    // ✅ 填充測資表格
+    // ✅ 更新測資表
     const tbody = document.querySelector("#testcaseTable tbody");
     tbody.innerHTML = "";
     (data.test_cases || []).forEach(tc => addTestcaseRow(tc.input, tc.output));
     document.getElementById("test_cases_input").value = JSON.stringify(data.test_cases, null, 2);
 
-    // 填充程式碼
+    // ✅ 填入程式碼
     document.getElementById("codeLinesInput").value = (data.code_lines || []).join("\n");
 
-    // 儲存 JSON
-    document.getElementById("mindmap_json_input").value = JSON.stringify(data.mindmap, null, 2);
-    document.getElementById("flowchart_json_input").value = JSON.stringify(data.flowchart, null, 2);
-
-    // 🌐 心智圖
-    if (data.mindmap) {
-      const mindmapContainer = document.getElementById('mindmapArea');
-      mindmapContainer.innerHTML = "";
-      try {
-        jm = new jsMind({ container: 'mindmapArea', editable: false, theme: 'primary' });
-        jm.show(data.mindmap);
-      } catch (e) {
-        console.error("心智圖解析失敗:", e);
-        mindmapContainer.innerHTML = "<div class='text-danger p-2'>⚠️ 心智圖資料格式錯誤</div>";
-      }
-    }
-
-    // 🔄 流程圖
-    if (data.flowchart || data.flowchart_json) {
-      const flowchartContainer = document.getElementById("flowchartArea");
-      flowchartContainer.innerHTML = "";
-
-      let flowData = data.flowchart || data.flowchart_json;
-
-      // 🔍 若是字串，先嘗試轉 JSON
-      if (typeof flowData === "string") {
-        try { flowData = JSON.parse(flowData); } catch (e) {
-          console.warn("流程圖字串轉換失敗:", e);
-        }
-      }
-
-      // 🔍 若內層還有 flowchart_json，取出真正節點資料
-      if (flowData && flowData.flowchart_json) {
-        flowData = flowData.flowchart_json;
-      }
-
-      if (!flowData || !flowData.nodes) {
-        console.warn("⚠️ 找不到流程圖節點資料:", flowData);
-        flowchartContainer.innerHTML = "<div class='text-danger p-2'>⚠️ 流程圖資料為 null 或結構錯誤</div>";
-        return;
-      }
-
-      try {
-        updateFlowchart("flowchartArea", flowData);
-      } catch (err) {
-        console.error("流程圖渲染失敗:", err, flowData);
-        flowchartContainer.innerHTML = "<div class='text-danger p-2'>⚠️ 流程圖渲染失敗</div>";
-      }
-    }
+    alert("✅ 題目內容已生成！請檢查後再進行第二步。");
   })
   .catch(err => {
-    alert("伺服器錯誤：" + err);
+    alert("⚠️ 伺服器錯誤：" + err);
   })
   .finally(() => {
-    document.getElementById("btnGenerateAI").disabled = false;
+    document.getElementById("btnGenerateBasic").disabled = false;
     document.getElementById("loadingSpinner").style.display = "none";
   });
 });
+
+
+document.getElementById("btnGenerateVisuals").addEventListener("click", () => {
+  const description = document.getElementById("descInput").value.trim();
+  const test_cases = document.getElementById("test_cases_input").value.trim();
+
+  if (!description || !test_cases) {
+    alert("⚠️ 請先確認題目描述與測資內容完整！");
+    return;
+  }
+
+  document.getElementById("btnGenerateVisuals").disabled = true;
+  document.getElementById("loadingSpinner").style.display = "block";
+
+  fetch("generate_diagram.php", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ description, test_cases })
+  })
+  .then(res => res.text())  // 改成 text()，防止 HTML 解析錯誤
+  .then(txt => {
+    let data;
+    try {
+      data = JSON.parse(txt);
+    } catch (err) {
+      console.error("⚠️ 非 JSON 回應：", txt);
+      alert("伺服器回傳非 JSON，請開啟 console 檢查錯誤訊息。");
+      return;
+    }
+
+    if (data.error) {
+      alert("❌ 生成失敗：" + data.error);
+      console.error("伺服器錯誤內容：", data);
+      return;
+    }
+
+    // ✅ 顯示心智圖
+    if (data.mindmap) {
+      document.getElementById("mindmap_json_input").value = JSON.stringify(data.mindmap, null, 2);
+      const mindmapContainer = document.getElementById('mindmapArea');
+      mindmapContainer.innerHTML = "";
+      const jm = new jsMind({ container: 'mindmapArea', editable: false, theme: 'primary' });
+      jm.show(data.mindmap);
+    }
+
+    // ✅ 顯示流程圖
+    if (data.flowchart) {
+      document.getElementById("flowchart_json_input").value = JSON.stringify(data.flowchart, null, 2);
+      updateFlowchart("flowchartArea", data.flowchart);
+    }
+
+    alert("✅ 已成功生成心智圖與流程圖！");
+  })
+  .catch(err => alert("⚠️ 伺服器錯誤：" + err))
+  .finally(() => {
+    document.getElementById("btnGenerateVisuals").disabled = false;
+    document.getElementById("loadingSpinner").style.display = "none";
+  });
+});
+
+
+
 
 
 document.querySelector("form").addEventListener("submit", function(e) {

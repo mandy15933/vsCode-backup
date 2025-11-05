@@ -1,0 +1,5 @@
+# 環境變數檔（含 OpenAI 金鑰）
+.env
+config.php
+*.log 
+*.tmp
