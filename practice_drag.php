@@ -80,20 +80,25 @@ $nextId = $nextQuestion['id'] ?? null;
 
 // 🔹 判斷章節題目總數 & 學生已完成題數
 $stmt = $conn->prepare("
-    SELECT COUNT(*) AS total,
-           SUM(CASE WHEN sa.is_correct=1 THEN 1 ELSE 0 END) AS done
-    FROM questions q
-    LEFT JOIN student_answers sa 
-    ON q.id = sa.question_id AND sa.user_id=?
-    WHERE q.chapter=?
+    SELECT 
+      (SELECT COUNT(*) 
+         FROM questions 
+        WHERE chapter = ?)                                AS total,
+      (SELECT COUNT(DISTINCT q.id)
+         FROM questions q
+         JOIN student_answers sa
+           ON sa.question_id = q.id
+          AND sa.user_id = ?
+          AND sa.is_correct = 1
+        WHERE q.chapter = ?)                              AS done
 ");
-$stmt->bind_param("ii", $userId, $chapterId);
+$stmt->bind_param("iii", $chapterId, $userId, $chapterId);
 $stmt->execute();
 $progress = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
-$totalQuestions = $progress['total'] ?? 0;
-$doneQuestions  = $progress['done'] ?? 0;
+$totalQuestions = (int)($progress['total'] ?? 0);
+$doneQuestions  = (int)($progress['done'] ?? 0);
 
 $chapterFinished = ($doneQuestions >= $totalQuestions);
 
@@ -205,19 +210,34 @@ $isPassed = ($isPassedRow && $isPassedRow['is_correct'] == 1);
                     $testGroupName = $groupData['name'] ?? '未命名題組';
                     $questionIds = json_decode($groupData['question_ids'], true) ?? [];
                     $totalInGroup = count($questionIds);
-                    $currentIndex = array_search($questionId, $questionIds); // 找出目前第幾題
-                    $currentNumber = $currentIndex !== false ? $currentIndex + 1 : '?';
+
+                    // 🔹 計算學生已通過題數
+                    $placeholders = implode(',', array_fill(0, $totalInGroup, '?'));
+                    $sql = "SELECT COUNT(DISTINCT question_id) AS passed_count
+                            FROM student_answers
+                            WHERE user_id=? AND is_correct=1 AND question_id IN ($placeholders)";
+                    $stmt = $conn->prepare($sql);
+                    $stmt->bind_param('i' . str_repeat('i', $totalInGroup), $userId, ...$questionIds);
+                    $stmt->execute();
+                    $passData = $stmt->get_result()->fetch_assoc();
+                    $stmt->close();
+
+                    $passedCount = (int)($passData['passed_count'] ?? 0);
+                    $percent = $totalInGroup > 0 ? round(($passedCount / $totalInGroup) * 100, 1) : 0;
                 ?>
-                <h5 class="mb-3 text-dark">🧩 測驗模式：<?= htmlspecialchars($testGroupName) ?></h5>
+
+                <h5 class="mb-3 text-dark">
+                    🧩 測驗模式：<?= htmlspecialchars($testGroupName) ?>
+                </h5>
 
                 <div class="progress" style="height: 25px; border-radius: 8px;">
-                    <div class="progress-bar bg-info" 
+                    <div class="progress-bar <?= $passedCount >= $totalInGroup ? 'bg-success' : 'bg-info' ?>" 
                         role="progressbar" 
-                        style="width: <?= $totalInGroup > 0 ? round(($currentNumber/$totalInGroup)*100, 1) : 0 ?>%;" 
-                        aria-valuenow="<?= $currentNumber ?>" 
+                        style="width: <?= $percent ?>%;" 
+                        aria-valuenow="<?= $passedCount ?>" 
                         aria-valuemin="0" 
                         aria-valuemax="<?= $totalInGroup ?>">
-                        第 <?= $currentNumber ?> / <?= $totalInGroup ?> 題
+                        <?= $passedCount ?> / <?= $totalInGroup ?> 題已通過
                     </div>
                 </div>
             <?php else: ?>
@@ -281,7 +301,11 @@ $isPassed = ($isPassedRow && $isPassedRow['is_correct'] == 1);
                         <button id="submitOrder" class="btn btn-cute btn-submit">✅ 提交答案</button>
                         <button id="indentBtn" class="btn btn-cute btn-outdent">➡ 縮排</button>
                         <button id="outdentBtn" class="btn btn-cute btn-indent">⬅ 反縮排</button>
-                        <?php if (!$testGroupId): ?>  <!-- 🚫 測驗模式不顯示上下題 -->
+                        <?php if ($testGroupId): ?>
+                            <!-- 🚩 測驗模式下：只顯示返回題組與題組選單 -->
+                            <a href="quiz.php?set=<?= $testGroupId ?>" 
+                               class="btn btn-outline-success">📘 返回題組</a>
+                        <?php else: ?>  <!-- 🚫 測驗模式不顯示上下題 -->
                             <?php if ($prevId): ?>
                                 <a href="practice_drag.php?question_id=<?= $prevId ?>" class="btn-cute btn-nav">⬅ 上一題</a>
                             <?php endif; ?>
@@ -606,7 +630,6 @@ function renderFlowchartWithInteraction(rawData) {
   }
 
   // === 綁定互動 ===
-  // === 綁定互動 ===
     setTimeout(() => {
     const svg = area.querySelector("svg");
     if (!svg) return;
@@ -800,33 +823,36 @@ if (flowchartTab) {
 
 
 const submitBtn = document.getElementById("submitOrder");
+
 if (submitBtn) {
-    submitBtn.addEventListener("click", () => {
-        let checkResult = compareCodeOrder();  
-        let isCorrect = checkResult.result;
+    submitBtn.addEventListener("click", async () => {
+        const checkResult = await compareCodeOrder();  // ✅ 等結果回來
+        if (!checkResult || typeof checkResult.result === "undefined") return;
+
+        const isCorrect = checkResult.result;
+        const humanMsg  = checkResult.message || "";
+
         playSound("soundClick", 0.6);
 
-        // 計算作答時間（秒）
-        let timeSpent = Math.floor((Date.now() - startTime) / 1000);
+        // 🕒 計算作答時間（秒）
+        const timeSpent = Math.floor((Date.now() - startTime) / 1000);
         const studentCode = Array.from(codeList.children)
             .map(li => " ".repeat((parseInt(li.getAttribute("data-indent")) || 0) * 4) + li.innerText.trim())
             .join("\n");
 
-        // 🔹 將程式碼加進 payload
-        let payload = {
+        // 📦 組 payload
+        const payload = {
             question_id: <?= $questionId ?>,
             is_correct: isCorrect ? 1 : 0,
             time_spent: timeSpent,
             code: studentCode,
             mindmap_clicks: mindmapClicks,
             flowchart_clicks: flowchartClicks,
-            viewed_types: viewedTypes
+            viewed_types: viewedTypes,
+            test_group_id: <?= $testGroupId ? (int)$testGroupId : 'null' ?>
         };
 
-        // 題組模式才加 test_group_id
-        payload.test_group_id = <?= $testGroupId ? (int)$testGroupId : 'null' ?>;
-
-        // 呼叫後端存紀錄
+        // 💾 儲存作答紀錄
         fetch("save_answer.php", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -838,25 +864,22 @@ if (submitBtn) {
 
             if (isCorrect) {
                 playSound("soundCorrect", 1);
-
                 <?php if ($testGroupId): ?>
-                    // ✅ 題組模式：停留在同一題
                     Swal.fire({
                         icon: "success",
                         title: "✅ 正確",
                         html: `
                             <p>恭喜答對！</p>
-                            <a href="quiz_group_view.php?set=<?= $testGroupId ?>" 
+                            <a href="quiz.php?set=<?= $testGroupId ?>" 
                                class="btn btn-outline-success mt-2">返回題組題目列表</a>
                         `,
                         showConfirmButton: false
                     });
                 <?php else: ?>
-                    // 🧩 一般章節練習：自動跳下一題
                     Swal.fire({
                         icon: "success",
                         title: "✅ 正確",
-                        text: checkResult.message,
+                        text: humanMsg,
                         timer: 1500,
                         showConfirmButton: false,
                         willClose: () => {
@@ -879,13 +902,6 @@ if (submitBtn) {
                         }
                     });
                 <?php endif; ?>
-            } else {
-                playSound("soundError", 1);
-                Swal.fire({
-                    icon: "error",
-                    title: "❌ 錯誤",
-                    text: checkResult.message
-                });
             }
         })
         .catch(err => {
@@ -899,137 +915,157 @@ if (submitBtn) {
     });
 }
 
+// ✅ 非同步 compareCodeOrder
+// ✅ 最終版 compareCodeOrder（含 AI Loading 動畫）
+async function compareCodeOrder() {
+    try {
+        // === Step 1~4. 取得使用者程式結構 ===
+        const currentLines = Array.from(codeList.children).map(li => ({
+            text: li.innerText.trim(),
+            indent: parseInt(li.getAttribute("data-indent")) || 0
+        }));
 
-
-
-function compareCodeOrder() {
-    // 🔹 Step 1. 取得目前學生拖曳後的順序與縮排
-    const currentLines = Array.from(codeList.children).map(li => ({
-        text: li.innerText.trim(),
-        indent: parseInt(li.getAttribute("data-indent")) || 0
-    }));
-
-    // 🔹 Step 2. 解析正確答案縮排結構
-    const correctLines = codeLines.map(line => {
-        const spaceCount = line.match(/^\s*/)[0].length;
-        const indentLevel = Math.floor(spaceCount / 4);
-        return { text: line.trim(), indent: indentLevel };
-    });
-
-    // === Step 3. 比對順序 ===
-    const currentTexts = currentLines.map(l => l.text);
-    const correctTexts = correctLines.map(l => l.text);
-    const orderCorrect = JSON.stringify(currentTexts) === JSON.stringify(correctTexts);
-
-    // === Step 4. 比對縮排 ===
-    const userIndentLevels = currentLines.map(l => l.indent);
-    const correctIndentLevels = correctLines.map(l => l.indent);
-    const indentCorrect = JSON.stringify(userIndentLevels) === JSON.stringify(correctIndentLevels);
-
-    // === Step 5. Debug (開發用) ===
-    console.group("🔍 縮排比對檢查");
-    console.log("使用者縮排層級：", userIndentLevels);
-    console.log("正確縮排層級：", correctIndentLevels);
-    console.groupEnd();
-
-    // === Step 6. 全部正確 ===
-    if (orderCorrect && indentCorrect) {
-        return { result: true, message: "✅ 排序與縮排都正確！" };
-    }
-
-    // === Step 7. 組合學生與正確代碼 ===
-    const studentCode = currentLines.map(l => " ".repeat(l.indent * 4) + l.text).join("\n");
-    const correctCode = codeLines.join("\n");
-
-    console.group("🧩 AI 回饋除錯");
-    console.log("studentCode:\n", studentCode);
-    console.log("correctCode:\n", correctCode);
-    console.groupEnd();
-
-    // 🧩 若程式碼為空，直接提示
-    if (!studentCode.trim() || !correctCode.trim()) {
-        Swal.fire({
-            icon: "warning",
-            title: "⚠️ 無法送出程式碼",
-            text: "偵測不到你的程式內容，請重新整理後再試一次。",
+        const correctLines = codeLines.map(line => {
+            const spaceCount = line.match(/^\s*/)[0].length;
+            const indentLevel = Math.floor(spaceCount / 4);
+            return { text: line.trim(), indent: indentLevel };
         });
-        return { result: false, message: "⚠️ 程式內容遺失，請重新整理。" };
-    }
 
+        const currentTexts = currentLines.map(l => l.text);
+        const correctTexts = correctLines.map(l => l.text);
+        const orderCorrect = JSON.stringify(currentTexts) === JSON.stringify(correctTexts);
 
-    // === Step 8. 呼叫 AI 分步提示（第二週才啟用） ===
-    if (<?= $week ?> >= 2) {
-        fetch("ai_feedback_step.php", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                question_title: <?= json_encode($question['title'] ?? '') ?>,
-                question_desc: <?= json_encode($question['description'] ?? '') ?>,
-                student_code: studentCode,
-                correct_code: correctCode,
-                avg_attempts: <?= json_encode($avgAttempts ?? 2.0) ?>
-            })
-        })
-        .then(async res => {
-            const text = await res.text();
+        const userIndentLevels = currentLines.map(l => l.indent);
+        const correctIndentLevels = correctLines.map(l => l.indent);
+        const indentCorrect = JSON.stringify(userIndentLevels) === JSON.stringify(correctIndentLevels);
+
+        console.group("🔍 縮排比對檢查");
+        console.log("使用者縮排層級：", userIndentLevels);
+        console.log("正確縮排層級：", correctIndentLevels);
+        console.groupEnd();
+
+        // === Step 5. 全部正確 ===
+        if (orderCorrect && indentCorrect) {
+            return { result: true, message: "✅ 排序與縮排都正確！" };
+        }
+
+        // === Step 6. 組合完整學生與正確程式 ===
+        const studentCode = currentLines.map(l => " ".repeat(l.indent * 4) + l.text).join("\n");
+        const correctCode = codeLines.join("\n");
+        if (!studentCode.trim() || !correctCode.trim()) {
+            Swal.fire({
+                icon: "warning",
+                title: "⚠️ 無法送出程式碼",
+                text: "偵測不到你的程式內容，請重新整理後再試一次。"
+            });
+            return { result: false, message: "⚠️ 程式內容遺失，請重新整理。" };
+        }
+
+        // === Step 7. 人工提示 ===
+        let humanMsg = "";
+        if (!orderCorrect && indentCorrect) humanMsg = "⚠️ 程式順序錯了幾行，再檢查一下吧！";
+        else if (orderCorrect && !indentCorrect) humanMsg = "⚠️ 順序正確，但縮排層級不對喔！";
+        else humanMsg = "💡 程式順序與縮排都有錯誤，請再試一次！";
+
+        // === Step 8. 顯示人工提示（先） ===
+        await Swal.fire({
+            icon: "error",
+            title: "❌ 錯誤",
+            text: humanMsg,
+            confirmButtonText: "知道了"
+        });
+
+        // === Step 9. 第二週才顯示 AI 提示 ===
+        if (<?= $week ?> >= 2) {
+            // 🧠 顯示 AI 助教思考中...
+            Swal.fire({
+                title: "🧠 AI 助教思考中...",
+                html: "<b>請稍候，AI 正在分析你的程式邏輯 ⚙️</b>",
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+
             try {
-                const data = JSON.parse(text);
-                const aiComment = (data.step1 || "") + "\n\n" + (data.step2 || "");
-
-                // 🧩 儲存 AI 回饋進 student_code_history
-                fetch("save_answer.php", {
+                const res = await fetch("ai_feedback_step.php", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        question_id: <?= $questionId ?>,
-                        is_correct: 0,
-                        time_spent: Math.floor((Date.now() - startTime) / 1000),
-                        code: studentCode,
-                        ai_comment: aiComment,  // ✅ 新增這行
-                        mindmap_clicks: mindmapClicks,
-                        flowchart_clicks: flowchartClicks,
-                        viewed_types: viewedTypes
+                        question_title: <?= json_encode($question['title'] ?? '') ?>,
+                        question_desc: <?= json_encode($question['description'] ?? '') ?>,
+                        student_code: studentCode,
+                        correct_code: correctCode,
+                        avg_attempts: <?= json_encode($avgAttempts ?? 2.0) ?>
                     })
                 });
 
-                // 🪄 同時顯示提示
-                playSound("soundSelect", 0.6);
-                Swal.fire({
-                    title: "💭 第一步提示",
-                    html: `<pre style="text-align:left;white-space:pre-wrap;">${data.step1 || "AI 暫時無法提供提示"}</pre>`,
-                    icon: "question",
-                    showDenyButton: true,
-                    confirmButtonText: "再給我更多提示 💡",
-                    denyButtonText: "我自己想想 💭"
-                }).then(result => {
-                    if (result.isConfirmed && data.step2) {
-                        playSound("soundClick2", 0.6);
-                        Swal.fire({
-                            title: "💡 第二步提示",
-                            html: `<pre style="text-align:left;white-space:pre-wrap;">${data.step2}</pre>`,
-                            icon: "info",
-                            width: 600
-                        });
-                    }
-                });
-            } catch (err) {
-                console.error("⚠️ AI 回傳非 JSON，原始內容：", text);
-            }
-        })
-        .catch(err => {
-            console.error("💥 AI 回饋錯誤：", err);
-        });
-    }
+                const raw = await res.text();
+                const clean = raw.trim().replace(/^\uFEFF/, "");
+                Swal.close(); // ✅ 關閉 loading 畫面
 
-    // === Step 9. 回傳基本人類提示 ===
-    if (!orderCorrect && indentCorrect) {
-        return { result: false, message: "⚠️ 程式順序錯了幾行，再檢查一下吧！" };
-    } else if (orderCorrect && !indentCorrect) {
-        return { result: false, message: "⚠️ 順序正確，但縮排層級不對喔！" };
-    } else {
-        return { result: false, message: "💡 程式順序與縮排都有錯誤，請再試一次！" };
+                let data = null;
+                if (clean.startsWith("{")) {
+                    data = JSON.parse(clean);
+                } else {
+                    console.warn("⚠️ AI 回傳非 JSON：", clean);
+                }
+
+                if (data) {
+                    playSound("soundSelect", 0.6);
+                    Swal.fire({
+                        title: "💭 第一步提示",
+                        html: `<pre style="text-align:left;white-space:pre-wrap;">${data.step1 || "AI 暫時無法提供提示"}</pre>`,
+                        icon: "question",
+                        showDenyButton: true,
+                        confirmButtonText: "再給我更多提示 💡",
+                        denyButtonText: "我自己想想 💭"
+                    }).then(result => {
+                        if (result.isConfirmed && data.step2) {
+                            playSound("soundClick2", 0.6);
+                            Swal.fire({
+                                title: "💡 第二步提示",
+                                html: `<pre style="text-align:left;white-space:pre-wrap;">${data.step2}</pre>`,
+                                icon: "info",
+                                width: 600
+                            });
+                        }
+                    });
+                } else {
+                    Swal.fire({
+                        icon: "warning",
+                        title: "⚠️ AI 無法提供提示",
+                        text: "AI 回傳格式有誤或內容為空，請稍後再試。"
+                    });
+                }
+
+            } catch (err) {
+                Swal.close(); // 保險關閉
+                console.error("💥 AI 回饋錯誤：", err);
+                Swal.fire({
+                    icon: "error",
+                    title: "💥 AI 提示發生錯誤",
+                    text: "伺服器連線或格式錯誤，請稍後再試。"
+                });
+            }
+        }
+
+        // === Step 10. 最終回傳人工結果 ===
+        return { result: false, message: humanMsg };
+
+    } catch (err) {
+        console.error("💥 compareCodeOrder 錯誤：", err);
+        Swal.close();
+        Swal.fire({
+            icon: "error",
+            title: "💥 系統錯誤",
+            text: err.message
+        });
+        return { result: false, message: "💥 compareCodeOrder 錯誤：" + err.message };
     }
 }
+
+
+
+
 
 
 // === 🌗 深色模式切換功能 (最終版) ===

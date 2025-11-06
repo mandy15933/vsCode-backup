@@ -2,14 +2,44 @@
 session_start();
 require 'db.php';
 
-// 取得題目資料（JOIN chapters）
+// 🔍 取得章節清單
+$chapters = $conn->query("SELECT id, title FROM chapters ORDER BY id")->fetch_all(MYSQLI_ASSOC);
+
+// 🔍 接收篩選條件
+$filterChapter = $_GET['chapter'] ?? '';
+$filterDifficulty = $_GET['difficulty'] ?? '';
+
+// 🔹 基本查詢
 $sql = "
   SELECT q.id, q.title, q.difficulty, q.created_at, c.title AS chapter_title
   FROM questions q
   LEFT JOIN chapters c ON q.chapter = c.id
-  ORDER BY q.id DESC
+  WHERE 1
 ";
-$result = $conn->query($sql);
+
+// 🔹 根據篩選條件動態增加 WHERE 條件
+$params = [];
+$types = '';
+
+if ($filterChapter !== '') {
+  $sql .= " AND q.chapter = ? ";
+  $params[] = $filterChapter;
+  $types .= 'i';
+}
+
+if ($filterDifficulty !== '') {
+  $sql .= " AND q.difficulty = ? ";
+  $params[] = $filterDifficulty;
+  $types .= 's';
+}
+
+$sql .= " ORDER BY q.id DESC";
+$stmt = $conn->prepare($sql);
+if ($params) {
+  $stmt->bind_param($types, ...$params);
+}
+$stmt->execute();
+$result = $stmt->get_result();
 ?>
 <!DOCTYPE html>
 <html lang="zh-Hant">
@@ -20,7 +50,6 @@ $result = $conn->query($sql);
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
-
 <style>
 body {
   background-color: #fffef8;
@@ -34,6 +63,12 @@ body {
   align-items: center;
   gap: 4px;
 }
+.filter-bar {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  padding: 15px 20px;
+}
 </style>
 </head>
 <body>
@@ -46,6 +81,42 @@ body {
       <i class="fa-solid fa-plus"></i> 新增題目
     </a>
   </div>
+
+  <!-- 🔍 篩選列 -->
+  <form method="get" class="filter-bar mb-4">
+    <div class="row g-2 align-items-center">
+      <div class="col-md-4">
+        <label class="form-label mb-1">章節</label>
+        <select name="chapter" class="form-select">
+          <option value="">全部章節</option>
+          <?php foreach ($chapters as $c): ?>
+            <option value="<?= $c['id'] ?>" <?= ($filterChapter == $c['id']) ? 'selected' : '' ?>>
+              第 <?= $c['id'] ?> 章：<?= htmlspecialchars($c['title']) ?>
+            </option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label mb-1">難度</label>
+        <select name="difficulty" class="form-select">
+          <option value="">全部難度</option>
+          <option value="簡單" <?= ($filterDifficulty == '簡單') ? 'selected' : '' ?>>簡單</option>
+          <option value="中等" <?= ($filterDifficulty == '中等') ? 'selected' : '' ?>>中等</option>
+          <option value="困難" <?= ($filterDifficulty == '困難') ? 'selected' : '' ?>>困難</option>
+        </select>
+      </div>
+      <div class="col-md-3 d-flex align-items-end">
+        <button type="submit" class="btn btn-outline-primary w-100">
+          <i class="fa-solid fa-magnifying-glass"></i> 搜尋
+        </button>
+      </div>
+      <div class="col-md-2 d-flex align-items-end">
+        <a href="Admin_question.php" class="btn btn-outline-secondary w-100">
+          <i class="fa-solid fa-rotate-left"></i> 重置
+        </a>
+      </div>
+    </div>
+  </form>
 
   <div class="card shadow-sm">
     <div class="card-body p-0">
@@ -64,9 +135,9 @@ body {
           <?php if ($result->num_rows > 0): ?>
             <?php while ($row = $result->fetch_assoc()): ?>
               <tr class="text-center">
-                <td><?=$row['id']?></td>
-                <td class="text-start"><?=htmlspecialchars($row['title'])?></td>
-                <td><?=htmlspecialchars($row['chapter_title'] ?? '未分類')?></td>
+                <td><?= $row['id'] ?></td>
+                <td class="text-start"><?= htmlspecialchars($row['title']) ?></td>
+                <td><?= htmlspecialchars($row['chapter_title'] ?? '未分類') ?></td>
                 <td>
                   <?php
                     $color = [
@@ -75,21 +146,24 @@ body {
                       '困難' => 'danger'
                     ][$row['difficulty']] ?? 'secondary';
                   ?>
-                  <span class="badge bg-<?=$color?>"><?=$row['difficulty']?></span>
+                  <span class="badge bg-<?= $color ?>"><?= $row['difficulty'] ?></span>
                 </td>
-                <td><?=date('Y-m-d H:i', strtotime($row['created_at']))?></td>
+                <td><?= date('Y-m-d H:i', strtotime($row['created_at'])) ?></td>
                 <td>
-                  <a href="edit_question.php?id=<?=$row['id']?>" class="btn btn-sm btn-outline-primary btn-action">
+                  <a href="edit_question.php?id=<?= $row['id'] ?>" class="btn btn-sm btn-outline-primary btn-action">
                     <i class="fa-solid fa-pen"></i> 編輯
                   </a>
-                  <button class="btn btn-sm btn-outline-danger btn-action" onclick="deleteQuestion(<?=$row['id']?>)">
+                  <a href="practice_drag.php?question_id=<?= $row['id'] ?>" target="_blank" class="btn btn-sm btn-outline-success btn-action">
+                    <i class="fa-solid fa-play"></i> 練習
+                  </a>
+                  <button class="btn btn-sm btn-outline-danger btn-action" onclick="deleteQuestion(<?= $row['id'] ?>)">
                     <i class="fa-solid fa-trash"></i> 刪除
                   </button>
                 </td>
               </tr>
             <?php endwhile; ?>
           <?php else: ?>
-            <tr><td colspan="6" class="text-center text-muted py-4">目前沒有題目資料。</td></tr>
+            <tr><td colspan="6" class="text-center text-muted py-4">目前沒有符合條件的題目。</td></tr>
           <?php endif; ?>
         </tbody>
       </table>
@@ -126,7 +200,7 @@ function deleteQuestion(id) {
         }
       })
       .catch(err => {
-        Swal.fire("❌ 系統錯誤", err, "error");
+        Swal.fire("❌ 系統錯誤", String(err), "error");
       });
     }
   });

@@ -177,8 +177,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['title'])) {
     <tbody>
       <!-- 預設一組空白 -->
       <tr>
-        <td><input type="text" class="form-control" placeholder="例：5 10"></td>
-        <td><input type="text" class="form-control" placeholder="例：50"></td>
+        <td>
+          <textarea class="form-control mono" rows="2" placeholder="例：5↵3"></textarea>
+        </td>
+        <td>
+          <textarea class="form-control mono" rows="2" placeholder="例：15↵"></textarea>
+        </td>
         <td>
           <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRow(this)">刪除</button>
         </td>
@@ -253,10 +257,10 @@ function addTestcaseRow(inputVal = "", outputVal = "") {
   const tr = document.createElement("tr");
   tr.innerHTML = `
     <td>
-      <textarea class="form-control mono" rows="2" placeholder="例：5\\n3">${inputVal}</textarea>
+      <textarea class="form-control mono" rows="2" placeholder="例：5↵3">${inputVal}</textarea>
     </td>
     <td>
-      <textarea class="form-control mono" rows="2" placeholder="例：15\\n">${outputVal}</textarea>
+      <textarea class="form-control mono" rows="2" placeholder="例：15↵">${outputVal}</textarea>
     </td>
     <td>
       <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRow(this)">刪除</button>
@@ -436,6 +440,18 @@ document.getElementById("btnGenerateBasic").addEventListener("click", () => {
 
 
 document.getElementById("btnGenerateVisuals").addEventListener("click", () => {
+    // ✅ 同步測資
+  const rows = document.querySelectorAll("#testcaseTable tbody tr");
+  const testCases = [];
+  rows.forEach(row => {
+    const inputs = row.querySelectorAll("textarea");
+    const inputVal = inputs[0]?.value.trim();
+    const outputVal = inputs[1]?.value.trim();
+    if (inputVal && outputVal) testCases.push({ input: inputVal, output: outputVal });
+  });
+  document.getElementById("test_cases_input").value = JSON.stringify(testCases, null, 2);
+
+  // ✅ 原本的檢查程式
   const description = document.getElementById("descInput").value.trim();
   const test_cases = document.getElementById("test_cases_input").value.trim();
 

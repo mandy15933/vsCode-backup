@@ -68,8 +68,16 @@ EOD;
     file_put_contents($logFile, "✅ OpenAI 回覆內容:\n$reply\n\n", FILE_APPEND);
 
     // 正規表示式提取「第一步」「第二步」
-    preg_match('/第一步[:：]\s*(.*?)---/s', $reply, $m1);
-    preg_match('/第二步[:：]\s*(.*)$/s', $reply, $m2);
+    preg_match('/第一步[:：]\s*(.*?)\n-{3,}\n/su', $reply, $m1);
+    preg_match('/第二步[:：]\s*(.*)$/su', $reply, $m2);
+
+    // 若仍抓不到，再嘗試簡化匹配
+    if (empty($m1[1]) && str_contains($reply, '第一步')) {
+        $parts = explode('第二步', $reply);
+        $m1[1] = trim(strip_tags(str_replace(['---', '第一步：', '第一步:'], '', $parts[0])));
+        $m2[1] = isset($parts[1]) ? trim(strip_tags(str_replace(['---', '第二步：', '第二步:'], '', $parts[1]))) : '';
+    }
+
 
     $step1 = trim($m1[1] ?? '');
     $step2 = trim($m2[1] ?? '');

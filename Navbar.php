@@ -21,13 +21,13 @@ $role       = $_SESSION['role'] ?? 'student'; // 預設學生
         <?php if ($role === 'admin'): ?>
           <li class="nav-item"><a class="nav-link" href="Admin_question.php">📘 題庫管理</a></li>
           <li class="nav-item"><a class="nav-link" href="add_question.php">➕ 新增題目</a></li>
-          <li class="nav-item"><a class="nav-link" href="chapters_admin.php">🗂 章節管理</a></li>
+          <li class="nav-item"><a class="nav-link" href="manage_test_groups.php">🗂 測驗題組</a></li>
           <li class="nav-item"><a class="nav-link" href="analysis_dashboard.php">📊 學習分析</a></li>
         <?php else: ?>
           <li class="nav-item"><a class="nav-link" href="index.php">🏠 首頁</a></li>
           <li class="nav-item"><a class="nav-link" href="courses.php">🧩 單元列表</a></li>
           <li class="nav-item"><a class="nav-link" href="quiz_select.php">💬 測驗區</a></li>
-          <li class="nav-item"><a class="nav-link" href="progress.php">📈 學習進度</a></li>
+          <li class="nav-item"><a class="nav-link" href="leaderboard.php">🏆 每日排行榜</a></li>
         <?php endif; ?>
       </ul>
 
