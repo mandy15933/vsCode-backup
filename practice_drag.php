@@ -154,7 +154,23 @@ $isPassedRow = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 $isPassed = ($isPassedRow && $isPassedRow['is_correct'] == 1);
+// ✅ 檢查章節剩餘題目
+$stmt = $conn->prepare("
+    SELECT COUNT(*) AS remaining
+    FROM questions q
+    WHERE q.chapter = ?
+      AND q.id NOT IN (
+          SELECT sa.question_id
+          FROM student_answers sa
+          WHERE sa.user_id = ? AND sa.is_correct = 1
+      )
+");
+$stmt->bind_param("ii", $chapterId, $userId);
+$stmt->execute();
+$remainRow = $stmt->get_result()->fetch_assoc();
+$stmt->close();
 
+$remaining = (int)($remainRow['remaining'] ?? 0);
 ?>
 <!DOCTYPE html>
 <html lang="zh-TW">
