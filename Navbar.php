@@ -27,7 +27,7 @@ $role       = $_SESSION['role'] ?? 'student'; // 預設學生
           <li class="nav-item"><a class="nav-link" href="index.php">🏠 首頁</a></li>
           <li class="nav-item"><a class="nav-link" href="courses.php">🧩 單元列表</a></li>
           <li class="nav-item"><a class="nav-link" href="quiz_select.php">💬 測驗區</a></li>
-          <li class="nav-item"><a class="nav-link" href="leaderboard.php">🏆 每日排行榜</a></li>
+          <!-- <li class="nav-item"><a class="nav-link" href="leaderboard.php">🏆 每日排行榜</a></li> -->
         <?php endif; ?>
       </ul>
 

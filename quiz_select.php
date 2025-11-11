@@ -13,11 +13,10 @@ $result = $conn->query($sql);
   <meta charset="UTF-8">
   <title>題組測驗 | Python學習平台</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <style>
-    body { background-color: #f8fafc; }
-    .card:hover { transform: scale(1.02); transition: 0.3s; }
-    .badge-difficulty { font-size: 0.85em; }
-  </style>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link rel="stylesheet" href="font.css">
+  <link rel="stylesheet" href="anime-yellow-theme.css">
 </head>
 <body>
 
@@ -32,6 +31,8 @@ $result = $conn->query($sql);
       <?php
         $questionCount = count(json_decode($row['question_ids'], true));
         $chapterRange = htmlspecialchars($row['chapter_range']);
+        $setId = $row['id'];
+        $timeLimit = (int)($row['time_limit'] ?? 0);
       ?>
       <div class="col-md-4">
         <div class="card shadow-sm border-warning">
@@ -40,12 +41,19 @@ $result = $conn->query($sql);
             <p class="card-text">
               章節範圍：<?= $chapterRange ?><br>
               題目數量：<?= $questionCount ?> 題<br>
+              限時：<?= $timeLimit ? $timeLimit . ' 分鐘' : '無限制' ?><br>
               建立時間：<?= date('Y-m-d', strtotime($row['created_at'])) ?>
             </p>
             <?php if (!empty($row['description'])): ?>
               <p class="text-muted small"><?= htmlspecialchars($row['description']) ?></p>
             <?php endif; ?>
-            <a href="quiz.php?set=<?= $row['id'] ?>" class="btn btn-warning w-100">開始測驗</a>
+            <a 
+              href="quiz.php?set=<?= $setId ?>" 
+              class="btn btn-warning w-100 quiz-btn" 
+              data-setid="<?= $setId ?>" 
+              data-timelimit="<?= $timeLimit ?>">
+              開始測驗
+            </a>
           </div>
         </div>
       </div>
@@ -57,6 +65,53 @@ $result = $conn->query($sql);
   © 2025 Python學習平台｜AI 輔助程式學習系統
 </footer>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function lockBtn(btn){
+  btn.textContent = "⏳ 時間結束";
+  btn.classList.remove("btn-warning");
+  btn.classList.add("btn-secondary", "disabled");
+  btn.setAttribute("aria-disabled","true");
+  btn.style.pointerEvents = "none";
+  btn.removeAttribute("href");
+}
+
+// 安全閥：若仍有 href，被標成 disabled 一律攔截
+document.addEventListener("click", (e) => {
+  const a = e.target.closest(".quiz-btn");
+  if (!a) return;
+  if (a.classList.contains("disabled") || a.getAttribute("aria-disabled") === "true") {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+});
+
+// 自動檢查是否超時 → 鎖按鈕
+document.querySelectorAll(".quiz-btn").forEach(btn => {
+  const setId = btn.dataset.setid;
+  const timeLimit = parseFloat(btn.dataset.timelimit || 0);
+  const storageKey = `quiz_timer_${setId}`;
+  const limitKey   = `quiz_limit_${setId}`;
+  const overKey    = `quiz_over_${setId}`;
+  const savedTime  = parseInt(localStorage.getItem(storageKey) ?? "0", 10);
+  const savedLimit = parseInt(localStorage.getItem(limitKey)   ?? "0", 10);
+  const currentLimit = Math.round(timeLimit * 60);
+
+  // 老師改限時 → 重置舊狀態（包含超時旗標）
+  if (timeLimit > 0 && savedLimit !== currentLimit) {
+    localStorage.setItem(limitKey, currentLimit);
+    localStorage.removeItem(storageKey);
+    localStorage.removeItem(overKey);
+  }
+
+  const isOver = localStorage.getItem(overKey) === "1" ||
+                 (localStorage.getItem(storageKey) !== null && savedTime <= 0);
+
+  if (timeLimit > 0 && isOver) {
+    lockBtn(btn);
+  }
+});
+</script>
+
+
 </body>
 </html>

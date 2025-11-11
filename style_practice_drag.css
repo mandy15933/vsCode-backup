@@ -1,69 +1,72 @@
-/* 🎨 Python 拖曳練習頁面主題 */
+/* 🎨 Python 拖曳練習頁面主題（與平台一致的動漫暖色風格） */
 body {
   font-family: "Chiron GoRound TC", "Noto Sans TC", sans-serif;
-  background: #fffbea;
-  color: #333;
+  background: linear-gradient(180deg, #fffdf4 0%, #fff8e1 100%);
+  color: #4e342e;
+  line-height: 1.7;
 }
 
-/* 卡片樣式 */
+/* 🧱 卡片樣式 */
 .card {
-  border-radius: 14px;
+  border-radius: 18px;
   overflow: hidden;
+  border: 2.5px solid #ffecb3;
+  background: #fffef7;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+  transition: box-shadow 0.3s ease;
 }
-
+.card:hover {
+  box-shadow: 0 6px 16px rgba(255, 213, 79, 0.35);
+}
 .card-header {
-  font-weight: 600;
+  font-weight: 700;
+  background: linear-gradient(to right, #ffecb3, #fff9c4);
+  border-bottom: 2px solid #ffe082;
+  color: #3e2723;
 }
 
-/* 拖曳程式碼區域 */
+/* 💻 拖曳程式碼區域 */
 #codeList {
   min-height: 300px;
-  border: 2px dashed #ffcc80;
-  border-radius: 10px;
-  padding: 8px;
-  background: #fffef5;
-  transition: all 0.3s ease;
+  border: 2px dashed #ffd54f;
+  border-radius: 12px;
+  padding: 10px;
+  background: #fffef3;
+  transition: box-shadow 0.3s ease, transform 0.2s ease;
+}
+#codeList:hover {
+  box-shadow: 0 0 12px rgba(255, 235, 59, 0.2);
 }
 
 .code-line {
   background-color: #fff;
   font-family: "JetBrains Mono", "Courier New", monospace;
   font-size: 16px;
-  border: 1px solid #eee;
+  border: 1.5px solid #f5f5f5;
   margin-bottom: 6px;
-  border-radius: 6px;
-  padding: 6px 10px;
+  border-radius: 8px;
+  padding: 6px 12px;
   transition: all 0.2s ease;
 }
-
 .code-line:hover {
+  background-color: #fffbe5;
   cursor: grab;
-  background-color: #fff8e1;
-  transform: scale(1.01);
+  transform: translateY(-1px);
 }
-
 .code-line.selected {
   background-color: #fff59d !important;
-  border: 2px solid #fdd835;
-  box-shadow: 0 0 10px rgba(255, 235, 59, 0.7);
+  border: 2px solid #fdd835 !important;
+  box-shadow: 0 0 12px rgba(255, 235, 59, 0.6);
 }
-
-/* 正確行高亮（流程圖連動） */
 .code-line.highlight {
-  background-color: #a5d6a7 !important;
+  background-color: #c8e6c9 !important;
   border: 2px solid #388e3c !important;
-  box-shadow: 0 0 12px rgba(56, 142, 60, 0.6);
-  transition: all 0.3s ease;
+  box-shadow: 0 0 14px rgba(76, 175, 80, 0.5);
 }
-
-/* 滑過暫時高亮 */
 .code-line.highlight-temp {
   background-color: #fff9c4 !important;
   border: 2px solid #ffeb3b !important;
-  transition: all 0.3s ease;
 }
-
-/* 程式碼區內的 pre 標籤 */
 #codeList pre {
   margin: 0;
   background: transparent;
@@ -71,178 +74,196 @@ body {
   white-space: pre;
 }
 
-/* 按鈕樣式 */
+/* ✨ 縮排層級 */
+.code-line[data-indent="1"] { margin-left: 20px; }
+.code-line[data-indent="2"] { margin-left: 40px; }
+.code-line[data-indent="3"] { margin-left: 60px; }
+.code-line[data-indent="4"] { margin-left: 80px; }
+.code-line[data-indent="5"] { margin-left: 100px; }
+
+/* 🧩 按鈕（統一動漫立體風） */
 .btn-cute {
   border: none;
-  border-radius: 10px;
-  padding: 8px 16px;
+  border-radius: 12px;
+  padding: 8px 18px;
   font-weight: 600;
   transition: 0.2s;
-  background: #ffca28;
-  color: #000;
+  background: linear-gradient(to top, #ffca28, #fff59d);
+  color: #3e2723;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.6), 0 5px 0 #ffb300;
 }
-
 .btn-cute:hover {
-  background: #ffc107;
   transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(255, 193, 7, 0.4);
 }
-
 .btn-cute:active {
   transform: scale(0.96);
 }
 
-/* 動畫按鈕效果 */
-.btn-animate {
-  transform: scale(1.1);
-  transition: transform 0.2s ease;
-}
-
-/* 提交按鈕特別強調 */
+/* ✅ 提交按鈕（綠色成功感） */
 .btn-submit {
-  background: #43a047;
-  color: white;
+  background: linear-gradient(to top, #66bb6a, #c8e6c9);
+  border: 3px solid #57a05b;
+  color: #1b5e20;
+  box-shadow: 0 5px 0 #57a05b, 0 8px 14px rgba(0, 0, 0, 0.15);
 }
 .btn-submit:hover {
-  background: #388e3c;
+  background: linear-gradient(to top, #81c784, #e8f5e9);
+  transform: translateY(-3px);
+  animation: pulseGreen 0.4s ease;
 }
 
-/* 導覽按鈕 */
+/* 🔸 上下題導覽 */
 .btn-nav {
-  background: #ffb300;
-  color: #000;
+  background: linear-gradient(to top, #ffb300, #ffe082);
+  border: 3px solid #f9a825;
+  color: #3e2723;
+  box-shadow: 0 4px 0 #f57f17;
 }
 .btn-nav:hover {
-  background: #ffa000;
+  background: linear-gradient(to top, #ffd54f, #fff59d);
+  transform: translateY(-3px);
 }
 
-/* 輔助提示卡片 */
-#mindmapArea,
-#flowchartArea {
-  background: #fffef5;
-  border-radius: 10px;
-}
-
-/* 進度條 */
-.progress-bar.bg-warning {
-  background-color: #ffc107 !important;
-}
-.progress-bar.bg-success {
-  background-color: #81c784 !important;
-}
-
-/* SweetAlert 字型調整 */
-.swal2-popup {
-  font-family: "Chiron GoRound TC", "Noto Sans TC", sans-serif;
-}
-
-/* 縮排層級 (使用 data-indent 屬性控制縮排寬度) */
-.code-line[data-indent="1"] {
-  margin-left: 20px;
-}
-.code-line[data-indent="2"] {
-  margin-left: 40px;
-}
-.code-line[data-indent="3"] {
-  margin-left: 60px;
-}
-.code-line[data-indent="4"] {
-  margin-left: 80px;
-}
-.code-line[data-indent="5"] {
-  margin-left: 100px;
-}
-
-/* 頁面整體排版微調 */
-.container {
-  max-width: 1200px;
-}
-
-/* flowchart 外層 */
-#flowchartWrapper {
-  background: #fff;
-  padding: 10px;
-  border-radius: 8px;
-}
-
-/* tab 樣式強化 */
-.nav-tabs .nav-link.active {
-  background-color: #ffecb3 !important;
-  font-weight: bold;
-  border-color: #ffc107 !important;
-}
+/* 🌐 Tabs 樣式 */
 .nav-tabs .nav-link {
-  color: #444;
+  color: #6d4c41;
+  border: none;
+  border-bottom: 3px solid transparent;
+  font-weight: 600;
+  transition: all 0.25s;
+}
+.nav-tabs .nav-link.active {
+  background-color: #fffde7 !important;
+  border-color: #ffb300 !important;
+  color: #3e2723 !important;
 }
 .nav-tabs .nav-link:hover {
   color: #000;
 }
 
-/* 心智圖節點文字美化 */
+/* 📚 提示區域 */
+#mindmapArea,
+#flowchartArea {
+  background: #fffef5;
+  border-radius: 10px;
+  padding: 8px;
+  border: 1.5px solid #ffecb3;
+}
+
+/* 📈 進度條 */
+.progress {
+  border-radius: 10px;
+  background-color: #fffde7;
+  border: 2px solid #ffecb3;
+}
+.progress-bar.bg-warning {
+  background-color: #ffca28 !important;
+}
+.progress-bar.bg-success {
+  background-color: #81c784 !important;
+}
+
+/* 💬 SweetAlert 美化 */
+.swal2-popup {
+  font-family: "Chiron GoRound TC", "Noto Sans TC", sans-serif;
+  border-radius: 16px;
+}
+
+/* 🪶 心智圖節點 */
 jmnode {
   font-family: "Noto Sans TC", sans-serif !important;
   border-radius: 8px !important;
   padding: 6px 10px !important;
+  background: #fffde7 !important;
+  border: 1.5px solid #ffe082 !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
 }
 
-/* 動態特效 */
-@keyframes pulse {
-  0% {
-    transform: scale(1);
-    box-shadow: 0 0 0 rgba(255, 193, 7, 0.5);
-  }
-  50% {
-    transform: scale(1.03);
-    box-shadow: 0 0 20px rgba(255, 193, 7, 0.6);
-  }
-  100% {
-    transform: scale(1);
-    box-shadow: 0 0 0 rgba(255, 193, 7, 0.5);
-  }
+/* 🌙 深色模式支援 */
+html[data-theme="dark"] body {
+  background: linear-gradient(180deg, #1e1e1e 0%, #2c2c2c 100%);
+  color: #e0e0e0;
+}
+html[data-theme="dark"] .card {
+  background: #2e2e2e;
+  border-color: #555;
+}
+html[data-theme="dark"] #codeList {
+  background: #1c1c1c;
+  border-color: #444;
+}
+html[data-theme="dark"] .code-line {
+  background: #222;
+  color: #e5e5e5;
+  border-color: #333;
+}
+html[data-theme="dark"] .code-line.selected {
+  background-color: #3e3e2e !important;
+  border-color: #fbc02d !important;
+}
+html[data-theme="dark"] .btn-cute {
+  background: linear-gradient(to top, #fbc02d, #ffd54f);
+  color: #212121;
+}
+html[data-theme="dark"] .btn-submit {
+  background: linear-gradient(to top, #43a047, #81c784);
+  border-color: #388e3c;
+  color: #e8f5e9;
 }
 
-.btn-cute:active {
-  animation: pulse 0.2s;
+/* ✨ 柔光按鈕動畫 */
+@keyframes pulseGreen {
+  0% { box-shadow: 0 0 0 rgba(102, 187, 106, 0.3); }
+  50% { box-shadow: 0 0 12px rgba(102, 187, 106, 0.8); }
+  100% { box-shadow: 0 0 0 rgba(102, 187, 106, 0.3); }
 }
 
-:root {
-  --bg: #ffffff;
-  --fg: #1f2328;
-  --muted: #6b7280;
-  --card: #ffffff;
-  --card-border: #e5e7eb;
-  --code-bg: #f6f8fa;
-  --code-fg: #1f2328;
-  --nav-bg: #fff;
-  --nav-fg: #1f2328;
-  --tab-bg: #f8f9fa;
+/* 🧽 統一框線顏色（去除黑邊） */
+.card,
+.card-header,
+.card-body,
+#codeList,
+#aiHintArea,
+#flowchartArea,
+#mindmapArea {
+  border-color: #ffe082 !important;
+  box-shadow: none !important;
 }
 
-html[data-theme="dark"] {
-  --bg: #0f1115;
-  --fg: #e5e7eb;
-  --muted: #94a3b8;
-  --card: #151922;
-  --card-border: #293241;
-  --code-bg: #0b0d12;
-  --code-fg: #e5e7eb;
-  --nav-bg: #0f1115;
-  --nav-fg: #e5e7eb;
-  --tab-bg: #11151d;
+/* 移除任何深色邊框樣式 */
+.border,
+.border-dark,
+.border-secondary {
+  border-color: #ffe082 !important;
 }
 
-.stylish-range {
-  height: 6px;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: all 0.3s ease;
+/* 移除 focus 黑框 */
+*:focus {
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(255, 224, 130, 0.6) !important; /* 柔黃色聚焦效果 */
 }
-.stylish-range::-webkit-slider-thumb {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #007bff;
-  transition: transform 0.2s;
+
+/* 調整 hover 時框線不要變黑 */
+.card:hover,
+#codeList:hover {
+  border-color: #ffeb3b !important;
 }
-.stylish-range::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
+
+/* 🧠 修正心智圖節點可讀性 */
+jmnode {
+  color: #3e2723 !important; /* 深咖啡文字，與主題一致 */
+  background: #fffde7 !important;
+  border: 2px solid #ffecb3 !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08) !important;
+  font-weight: 600 !important;
+}
+
+/* 滑鼠移過節點時加強可視性 */
+jmnode:hover {
+  background: #fff9c4 !important;
+  border-color: #ffd54f !important;
+  color: #000 !important;
+  box-shadow: 0 0 10px rgba(255, 213, 79, 0.4) !important;
+  transition: all 0.25s ease;
 }

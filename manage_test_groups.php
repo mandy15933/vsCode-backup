@@ -14,11 +14,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $description = $_POST['description'] ?? '';
     $chapter_range = $_POST['chapter_range'] ?? '';
     $selected = $_POST['question_ids'] ?? [];
+    $time_limit = $_POST['time_limit'] ?? null; // ✅ 取限時
 
     if (!empty($selected)) {
-        $json = json_encode($selected, JSON_UNESCAPED_UNICODE);
-        $stmt = $conn->prepare("INSERT INTO test_groups (name, description, chapter_range, question_ids) VALUES (?, ?, ?, ?)");
-        $stmt->bind_param("ssss", $name, $description, $chapter_range, $json);
+        $json = json_encode($selected, JSON_UNESCAPED_UNICODE); // ✅ 你漏掉這行！
+        $stmt = $conn->prepare("INSERT INTO test_groups (name, description, chapter_range, question_ids, time_limit) VALUES (?, ?, ?, ?, ?)");
+        $stmt->bind_param("ssssi", $name, $description, $chapter_range, $json, $time_limit);
         $stmt->execute();
         $stmt->close();
     }
@@ -58,6 +59,7 @@ if (isset($_GET['delete'])) {
       <tr>
         <th>題組名稱</th>
         <th>章節範圍</th>
+        <th>限時（分鐘）</th>
         <th>題目數量</th>
         <th>建立日期</th>
         <th>操作</th>
@@ -69,6 +71,7 @@ if (isset($_GET['delete'])) {
         <tr>
           <td><?= htmlspecialchars($row['name']) ?></td>
           <td><?= htmlspecialchars($row['chapter_range'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($row['time_limit'] ?? '-') ?></td>
           <td><?= $count ?> 題</td>
           <td><?= date('Y-m-d', strtotime($row['created_at'])) ?></td>
           <td>
@@ -96,6 +99,10 @@ if (isset($_GET['delete'])) {
           <div class="mb-3">
             <label class="form-label">題組名稱</label>
             <input type="text" name="name" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">答題限時（分鐘）</label>
+            <input type="number" name="time_limit" class="form-control" min="1" placeholder="例如：30">
           </div>
           <div class="mb-3">
             <label class="form-label">題組說明</label>
@@ -146,6 +153,10 @@ if (isset($_GET['delete'])) {
             <input type="text" name="name" id="editGroupName" class="form-control" required>
           </div>
           <div class="mb-3">
+            <label class="form-label">答題限時（分鐘）</label>
+            <input type="number" name="time_limit" id="editGroupTime" class="form-control" min="1">
+          </div>
+          <div class="mb-3">
             <label class="form-label">題組說明</label>
             <textarea name="description" id="editGroupDesc" class="form-control" rows="2"></textarea>
           </div>
@@ -182,6 +193,7 @@ if (isset($_GET['delete'])) {
 function editGroup(group) {
   const modal = new bootstrap.Modal(document.getElementById('editGroupModal'));
   document.getElementById("editGroupId").value = group.id;
+  document.getElementById("editGroupTime").value = group.time_limit || "";
   document.getElementById("editGroupName").value = group.name;
   document.getElementById("editGroupDesc").value = group.description || "";
   document.getElementById("editGroupRange").value = group.chapter_range || "";
@@ -205,6 +217,7 @@ function editGroup(group) {
 document.getElementById("editGroupForm").addEventListener("submit", function(e) {
   e.preventDefault();
   const id = document.getElementById("editGroupId").value;
+  const time_limit = document.getElementById("editGroupTime").value.trim();
   const name = document.getElementById("editGroupName").value.trim();
   const description = document.getElementById("editGroupDesc").value.trim();
   const chapter_range = document.getElementById("editGroupRange").value.trim();
@@ -213,7 +226,7 @@ document.getElementById("editGroupForm").addEventListener("submit", function(e) 
   fetch("update_test_group.php", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ id, name, description, chapter_range, question_ids })
+    body: JSON.stringify({ id, name, description, chapter_range, question_ids, time_limit })
   })
   .then(res => res.json())
   .then(data => {

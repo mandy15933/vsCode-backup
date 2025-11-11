@@ -11,6 +11,7 @@ $week = 2;   // 第一週：只顯示拖曳 + 測資
 // 假設已登入
 $userId = $_SESSION['user_id'] ?? 1;
 $testGroupId = $_GET['test_group_id'] ?? null;
+$isExamMode = !empty($testGroupId);
 
 // 取得指定題目 ID
 if (!isset($_GET['question_id'])) {
@@ -207,6 +208,8 @@ $remaining = (int)($remainRow['remaining'] ?? 0);
     <audio id="soundMove" src="sounds/move.mp3?v=1" preload="auto"></audio>
     <link rel="stylesheet" href="style_practice_drag.css?v=2.0">
     <script src="feedback_modal.js?v=1.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="anime-yellow-theme.css?v=3.0">
 </head>
 <body>
 <?php include 'Navbar.php'; ?>
@@ -277,7 +280,13 @@ $remaining = (int)($remainRow['remaining'] ?? 0);
     </div>
 </div>
 
+
+
+
 <div class="container-fluid mt-4">
+    <?php if (!empty($timeLimit)): ?>
+        <div id="timerBox" class="text-center mb-3 fs-5 fw-bold text-danger"></div>
+    <?php endif; ?>
     <div class="row">
         <!-- 題目區 -->
         <div class="col-12 mb-3">
@@ -302,11 +311,11 @@ $remaining = (int)($remainRow['remaining'] ?? 0);
         <!-- 左側：拖曳排序 -->
         <div class="col-lg-6 mb-3">
             <div class="card border-dark shadow-sm">
-                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <div class="card-header  d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">💻 拖曳程式碼區域</h5>
-                    <button id="themeToggle" class="btn btn-outline-light btn-sm" type="button">
+                    <!-- <button id="themeToggle" class="btn btn-outline-light btn-sm" type="button">
                         🌙 深色
-                    </button>
+                    </button> -->
                 </div>
 
                 <div class="card-body">
@@ -316,14 +325,18 @@ $remaining = (int)($remainRow['remaining'] ?? 0);
                     </p>
                     <ul id="codeList" class="list-group mb-3"></ul>
                     <div class="d-flex gap-2">
-                        <button id="submitOrder" class="btn btn-cute btn-submit">✅ 提交答案</button>
-                        <button id="aiHintBtn" class="btn btn-outline-primary">🤖 AI提示</button>
-                        <button id="indentBtn" class="btn btn-cute btn-outdent">➡ 縮排</button>
-                        <button id="outdentBtn" class="btn btn-cute btn-indent">⬅ 反縮排</button>
+                        <button id="submitOrder" class="btn  btn-submitting">✅ 提交答案</button>
+                        <button id="aiHintBtn" class="btn btn-warning">🤖 AI提示</button>
+                        <button id="indentBtn" class="btn btn-cute btn-dent">➡ 縮排</button>
+                        <button id="outdentBtn" class="btn btn-cute btn-dent">⬅ 反縮排</button>
+                        <?php if (empty($testGroupId)): ?>
+                            <a href="practice_list.php?chapter=<?= $chapterId ?>" 
+                               class="btn btn-secondary">📘 返回章節列表</a>
+                        <?php endif; ?>
                         <?php if ($testGroupId): ?>
                             <!-- 🚩 測驗模式下：只顯示返回題組與題組選單 -->
                             <a href="quiz.php?set=<?= $testGroupId ?>" 
-                               class="btn btn-outline-success">📘 返回題組</a>
+                               class="btn btn-secondary">📘 返回題組</a>
                         <?php else: ?>  <!-- 🚫 測驗模式不顯示上下題 -->
                             <?php if ($prevId): ?>
                                 <a href="practice_drag.php?question_id=<?= $prevId ?>" class="btn-cute btn-nav">⬅ 上一題</a>
@@ -384,14 +397,22 @@ $remaining = (int)($remainRow['remaining'] ?? 0);
                         </div>
                         <!-- 流程圖 -->
                         <div class="tab-pane fade" id="flowchartPane" role="tabpanel">
-                            <div class="d-flex justify-content-center">
+                            <div class="d-flex flex-column align-items-center">
                                 <div id="flowchartWrapper" class="card shadow-sm border-warning d-inline-block">
-                                    <div class="card-body">
-                                        <div id="flowchartArea"></div>
-                                    </div>
+                                <div class="card-body text-center">
+                                    <div id="flowchartArea"></div>
+                                </div>
+                                </div>
+
+                                <!-- 🔍 縮放控制 -->
+                                <div class="mt-2">
+                                <button id="zoomOutBtn" class="btn btn-outline-secondary btn-sm">➖ 縮小</button>
+                                <button id="zoomInBtn" class="btn btn-outline-secondary btn-sm">➕ 放大</button>
+                                <button id="zoomResetBtn" class="btn btn-outline-secondary btn-sm">🔄 重設</button>
                                 </div>
                             </div>
                         </div>
+
                         <div class="tab-pane fade" id="aihintPane" role="tabpanel">
                             <div id="aiHintArea" class="border rounded p-3 bg-light" style="min-height: 200px;">
                                 <p class="text-muted">尚未產生 AI 提示。</p>
@@ -881,20 +902,32 @@ if (flowchartTab && !window._clickBound.flowchart) {
   });
 }
 
+
+// === 🤖 AI 提示按鈕 ===
 // === 🤖 AI 提示按鈕 ===
 const aiHintBtn = document.getElementById("aiHintBtn");
 const aiHintArea = document.getElementById("aiHintArea");
+
 if (aiHintBtn && !window._clickBound.aihint) {
   window._clickBound.aihint = true;
+
   aiHintBtn.addEventListener("click", async () => {
-    recordAction("aihint"); // ✅ 紀錄
+    recordAction("aihint");
+    playSound("soundClick", 0.6);
+
+    // 🔹 一按下就自動切換到 AI提示 分頁
+    const aiTab = new bootstrap.Tab(document.getElementById("aihint-tab"));
+    aiTab.show();
+
+    // 🔹 顯示載入動畫
     aiHintArea.innerHTML = `
-      <div class="text-center text-secondary p-3">
-        <div class="spinner-border text-primary" role="status"></div>
-        <p class="mt-2">AI 助教正在分析你的程式邏輯...</p>
+      <div class="text-center text-secondary p-4">
+        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
+        <p class="mt-3 fw-bold">AI 助教正在生成提示中...</p>
       </div>
     `;
 
+    // 🔹 準備要送出的程式碼
     const studentCode = Array.from(codeList.children)
       .map(li => " ".repeat((parseInt(li.getAttribute("data-indent")) || 0) * 4) + li.innerText.trim())
       .join("\n");
@@ -918,177 +951,203 @@ if (aiHintBtn && !window._clickBound.aihint) {
       const data = clean.startsWith("{") ? JSON.parse(clean) : null;
 
       if (data) {
-        const step1 = data.step1 ? `<h6>🪜 第一步：</h6><pre class="bg-white p-2 border rounded">${data.step1}</pre>` : "";
-        const step2 = data.step2 ? `<h6>💡 第二步：</h6><pre class="bg-white p-2 border rounded">${data.step2}</pre>` : "";
-        aiHintArea.innerHTML = `<div class="text-start">${step1}${step2 || "<p class='text-muted'>AI 僅提供一階段提示。</p>"}</div>`;
-        const aiTab = new bootstrap.Tab(document.getElementById("aihint-tab"));
-        aiTab.show();
+        playSound("soundSuccess", 0.8);
+
+        // 第一步提示（直接顯示）
+        const step1 = data.step1
+          ? `<h6>🪜 第一步：</h6>
+             <pre class="bg-white p-2 border rounded">${data.step1}</pre>`
+          : "";
+
+        // 第二步提示（初始隱藏，需按按鈕展開）
+        let step2 = "";
+        if (data.step2) {
+          step2 = `
+            <div id="step2Container" style="display:none;">
+              <h6>💡 第二步：</h6>
+              <pre class="bg-white p-2 border rounded">${data.step2}</pre>
+            </div>
+            <div class="text-center mt-2">
+              <button id="showMoreHintBtn" class="btn btn-outline-primary btn-sm">
+                👉 顯示更多提示
+              </button>
+            </div>
+          `;
+        } else {
+          step2 = `<p class="text-muted">AI 僅提供一階段提示。</p>`;
+        }
+
+        // 顯示結果並淡入
+        aiHintArea.innerHTML = `
+          <div class="text-start fade-in">
+            ${step1}
+            ${step2}
+          </div>
+        `;
+
+        aiHintArea.style.opacity = 0;
+        setTimeout(() => {
+          aiHintArea.style.transition = "opacity 0.6s ease";
+          aiHintArea.style.opacity = 1;
+        }, 100);
+
+        // 綁定顯示更多提示按鈕
+        const showMoreBtn = document.getElementById("showMoreHintBtn");
+        if (showMoreBtn) {
+          showMoreBtn.addEventListener("click", () => {
+            const secondPart = document.getElementById("step2Container");
+            if (secondPart) {
+              secondPart.style.display = "block";
+              showMoreBtn.remove();
+              playSound("soundClick2", 0.7);
+            }
+          });
+        }
+
       } else {
         aiHintArea.innerHTML = `<p class="text-danger">⚠️ 無法取得 AI 提示，請稍後再試。</p>`;
+        playSound("soundError", 0.8);
       }
     } catch (err) {
       aiHintArea.innerHTML = `<p class="text-danger">💥 發生錯誤：${err.message}</p>`;
+      playSound("soundError", 0.8);
     }
   });
 }
 
-// === ✅ 提交答案 ===
+
+
 // === ✅ 提交答案 ===
 const submitBtn = document.getElementById("submitOrder");
-if (submitBtn) {
-  submitBtn.addEventListener("click", async () => {
-    const checkResult = await compareCodeOrder();
-    if (!checkResult || typeof checkResult.result === "undefined") return;
+    if (submitBtn) {
+    submitBtn.addEventListener("click", async () => {
+        const checkResult = await compareCodeOrder();
+        if (!checkResult || typeof checkResult.result === "undefined") return;
 
-    const isCorrect = checkResult.result;
-    const humanMsg = checkResult.message || "";
-    playSound("soundClick", 0.6);
+        const isCorrect = checkResult.result;
+        const humanMsg = checkResult.message || "";
+        playSound("soundClick", 0.6);
 
-    const timeSpent = Math.floor((Date.now() - startTime) / 1000);
-    const studentCode = Array.from(codeList.children)
-      .map(li => " ".repeat((parseInt(li.getAttribute("data-indent")) || 0) * 4) + li.innerText.trim())
-      .join("\n");
-    const aiComment = aiHintArea?.innerText?.trim() || "";
-    const viewedTypes = Array.from(viewedTypesSet);
+        const timeSpent = Math.floor((Date.now() - startTime) / 1000);
+        const studentCode = Array.from(codeList.children)
+        .map(li => " ".repeat((parseInt(li.getAttribute("data-indent")) || 0) * 4)
+            + li.innerText.replace(/\u200B/g, "").trim())
+        .join("\n");
+        const aiComment = aiHintArea?.innerText?.trim() || "";
+        const viewedTypes = Array.from(viewedTypesSet);
 
-    const payload = {
-      question_id: <?= $questionId ?>,
-      is_correct: isCorrect ? 1 : 0,
-      time_spent: timeSpent,
-      code: studentCode,
-      mindmap_clicks: mindmapClicks,
-      flowchart_clicks: flowchartClicks,
-      aiHint_clicks: aiHintClicks,
-      viewed_types: JSON.stringify(viewedTypes),
-      used_ai_visual: viewedTypes.includes("mindmap") || viewedTypes.includes("flowchart"),
-      ai_comment: aiComment,
-      test_group_id: <?= $testGroupId ? (int)$testGroupId : 'null' ?>
-    };
+        const payload = {
+        question_id: <?= $questionId ?>,
+        is_correct: isCorrect ? 1 : 0,
+        time_spent: timeSpent,
+        code: studentCode,
+        mindmap_clicks: mindmapClicks,
+        flowchart_clicks: flowchartClicks,
+        aiHint_clicks: aiHintClicks,
+        viewed_types: JSON.stringify(viewedTypes),
+        used_ai_visual: viewedTypes.includes("mindmap") || viewedTypes.includes("flowchart"),
+        ai_comment: aiComment,
+        test_group_id: <?= isset($testGroupId) ? (int)$testGroupId : 'null' ?>
+        };
 
-    try {
-      const res = await fetch("save_answer.php", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      console.log("✅ 儲存結果：", data);
+        try {
+        const res = await fetch("save_answer.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        console.log("✅ 儲存結果：", data);
 
-      // ❌ 答錯時
-      if (!isCorrect) {
-        
-    return; // 不再顯示第二次 Swal
-    }
+        // ❌ 答錯時（Swal 已顯示，不再重複）
+        if (!isCorrect) return;
 
-      // ✅ 答對時
-      playSound("soundCorrect", 1);
-      await Swal.fire({
-        icon: "success",
-        title: "✅ 正確",
-        text: humanMsg,
-        timer: 1000,
-        showConfirmButton: false
-      });
-
-      // === 🧠 檢查是否使用過輔助工具 ===
-    const usedTools = [];
-    if (viewedTypesSet.has("mindmap")) usedTools.push("mindmap");
-    if (viewedTypesSet.has("flowchart")) usedTools.push("flowchart");
-
-    const nextUrl = `practice_drag.php?question_id=<?= $nextId ?><?php if ($testGroupId): ?>&test_group_id=<?= $testGroupId ?><?php endif; ?>`;
-
-    if (usedTools.length > 0) {
-    try {
-        // 🔍 檢查哪些問卷尚未填寫
-        const feedbackCheck = await fetch(`check_feedback.php?question_id=<?= $questionId ?>`);
-        const feedbackData = await feedbackCheck.json();
-        const alreadyAnswered = feedbackData.answered || [];
-
-        const remainingTools = usedTools.filter(t => !alreadyAnswered.includes(t));
-
-        // 若兩個都已填過，就直接跳下一題
-        if (remainingTools.length === 0) {
-        window.location.href = nextUrl;
-        return;
-        }
-
-        // ✅ 依序顯示問卷（例如先心智圖 → 再流程圖）
-        for (const toolType of remainingTools) {
-        await showFeedbackModal(toolType, <?= $questionId ?>);
-        }
-
-        // ✅ 所有問卷完成 → 小提示再跳轉
+        // ✅ 答對
+        playSound("soundCorrect", 1);
         await Swal.fire({
-        icon: "success",
-        title: "✅ 已完成所有問卷",
-        text: "感謝你的回饋！即將進入下一題～",
-        timer: 1200,
-        showConfirmButton: false,
-        allowOutsideClick: false
+            icon: "success",
+            title: "✅ 正確",
+            text: humanMsg,
+            timer: 1000,
+            showConfirmButton: false
         });
 
-        window.location.href = nextUrl;
+        // === 🧠 問卷流程 ===
+        const usedTools = [];
+        if (viewedTypesSet.has("mindmap")) usedTools.push("mindmap");
+        if (viewedTypesSet.has("flowchart")) usedTools.push("flowchart");
 
-    } catch (err) {
-        console.error("💥 問卷流程錯誤：", err);
-        await Swal.fire({
-        icon: "error",
-        title: "💥 無法載入問卷",
-        text: "伺服器出現錯誤，請稍後再試。"
-        });
-    }
+        <?php if ($testGroupId): ?>
+            <?php
+                // 🧩 題組模式：由題組 question_ids 控制跳題順序
+                $questionIds = json_decode($groupData['question_ids'], true) ?? [];
+                $currentIndex = array_search($questionId, $questionIds);
+                $nextIdInGroup = $questionIds[$currentIndex + 1] ?? null;
+            ?>
+            const nextUrl = <?= $nextIdInGroup 
+                ? json_encode("practice_drag.php?question_id={$nextIdInGroup}&test_group_id={$testGroupId}") 
+                : json_encode("quiz.php?set={$testGroupId}&done=1") ?>;
+        <?php else: ?>
+            const nextUrl = <?= $nextId 
+                ? json_encode("practice_drag.php?question_id={$nextId}") 
+                : ($nextChapterFirstQId 
+                    ? json_encode("practice_drag.php?question_id={$nextChapterFirstQId}") 
+                    : json_encode("practice_list.php?chapter={$chapterId}&done=1")) ?>;
+        <?php endif; ?>
 
-    } else {
-    // 🧩 未使用任何輔助工具 → 直接跳轉
-        goToNextQuestion();
-    }
-    } catch (err) {
+
+        if (usedTools.length > 0) {
+            try {
+            const feedbackCheck = await fetch(`check_feedback.php?question_id=<?= $questionId ?>`);
+            const feedbackData = await feedbackCheck.json();
+            const remainingTools = usedTools.filter(t => !(feedbackData.answered || []).includes(t));
+
+            if (remainingTools.length === 0) {
+                window.location.href = nextUrl;
+                return;
+            }
+
+            for (const toolType of remainingTools) {
+                await showFeedbackModal(toolType, <?= $questionId ?>);
+            }
+
+            await Swal.fire({
+                icon: "success",
+                title: "✅ 已完成所有問卷",
+                text: "感謝你的回饋！即將進入下一題～",
+                timer: 1200,
+                showConfirmButton: false
+            });
+
+            window.location.href = nextUrl;
+
+            } catch (err) {
+            console.error("💥 問卷流程錯誤：", err);
+            await Swal.fire({
+                icon: "error",
+                title: "💥 無法載入問卷",
+                text: "伺服器錯誤，將直接跳至下一題。"
+            });
+            window.location.href = nextUrl;
+            }
+
+        } else {
+            // 🧩 未使用輔助工具 → 直接跳轉
+            window.location.href = nextUrl;
+        }
+        } catch (err) {
         console.error("💥 儲存錯誤：", err);
         Swal.fire({
-        icon: "error",
-        title: "💥 系統錯誤",
-        text: err.message
+            icon: "error",
+            title: "💥 系統錯誤",
+            text: err.message
         });
-    }
+        }
     });
     }
 
 
 
-// === 🎯 題組模式跳轉控制 ===
-function goToNextQuestion() {
-  const testGroupId = <?= $testGroupId ? $testGroupId : 'null' ?>;
-  const currentQid = <?= $questionId ?>;
-
-  // 題組題目順序（由 PHP 輸出）
-  const groupQuestions = <?= isset($questionIds) ? json_encode($questionIds) : '[]' ?>;
-  const currentIndex = groupQuestions.indexOf(currentQid);
-
-  if (testGroupId && currentIndex !== -1) {
-    // ✅ 測驗模式邏輯
-    if (currentIndex < groupQuestions.length - 1) {
-      const nextQid = groupQuestions[currentIndex + 1];
-      const nextUrl = `practice_drag.php?question_id=${nextQid}&test_group_id=${testGroupId}`;
-      console.log(`➡ 題組跳轉：${currentQid} → ${nextQid}`);
-      setTimeout(() => (window.location.href = nextUrl), 600);
-    } else {
-      // ✅ 題組完成 → 導向結果頁
-      console.log("🎉 題組全部完成！");
-      setTimeout(() => (window.location.href = `quiz_result.php?set=${testGroupId}`), 600);
-    }
-  } else {
-    // 🧩 練習模式照原來章節跳轉
-    let nextUrl = "";
-    if (<?= $nextId ? 1 : 0 ?>) {
-      nextUrl = `practice_drag.php?question_id=<?= $nextId ?>`;
-    } else if (<?= $nextChapterFirstQId ? 1 : 0 ?>) {
-      nextUrl = `practice_drag.php?question_id=<?= $nextChapterFirstQId ?>`;
-    } else {
-      nextUrl = "chapter_list.php";
-    }
-    setTimeout(() => (window.location.href = nextUrl), 600);
-  }
-}
 
 
 
@@ -1170,55 +1229,122 @@ async function compareCodeOrder() {
 }
 
 
+// === ⏱️ 限時僅在測驗模式啟用 ===
+const isExamMode = <?= $isExamMode ? 'true' : 'false' ?>;
 
+if (isExamMode) {
+  const storageKey = "quiz_timer_<?= (int)($_GET['test_group_id'] ?? 0) ?>";
+  let timeLeft = parseInt(localStorage.getItem(storageKey) || 0);
 
+  if (timeLeft > 0) {
+    const timerBox = document.createElement("div");
+    timerBox.id = "timerBox";
+    timerBox.className = "text-center mb-3 fs-5 fw-bold text-danger";
+    document.body.prepend(timerBox);
 
-// === 🌗 深色模式切換功能 (最終版) ===
-(function(){
-  const STORAGE_KEY = 'theme';
-  const btn = document.getElementById('themeToggle');
-  const htmlEl = document.documentElement; // 切在 <html>
+    function updateTimer() {
+      const min = Math.floor(timeLeft / 60);
+      const sec = timeLeft % 60;
+      timerBox.textContent = `⏰ 剩餘時間：${min}:${sec.toString().padStart(2, "0")}`;
+      localStorage.setItem(storageKey, timeLeft);
 
-  // 套用主題
-  function applyTheme(mode){
-    if(mode === 'dark'){
-      htmlEl.setAttribute('data-theme', 'dark');
-      if(btn){
-        btn.classList.remove('btn-outline-dark');
-        btn.classList.add('btn-outline-light');
-        btn.innerText = '☀️ 淺色';
+      if (timeLeft <= 0) {
+        clearInterval(timer);
+        localStorage.setItem(storageKey, 0);
+        Swal.fire({
+          icon: "warning",
+          title: "時間到！",
+          text: "測驗時間已結束，系統將返回題組頁。",
+        }).then(() => {
+          window.location.href = "quiz_select.php";
+        });
       }
-    } else {
-      htmlEl.removeAttribute('data-theme');
-      if(btn){
-        btn.classList.remove('btn-outline-light');
-        btn.classList.add('btn-outline-dark');
-        btn.innerText = '🌙 深色';
-      }
+      timeLeft--;
     }
+
+    updateTimer();
+    const timer = setInterval(updateTimer, 1000);
+  } else {
+    // 測驗模式下若已超時，直接提示並返回題組
+    Swal.fire({
+      icon: "error",
+      title: "測驗已超時",
+      text: "此題組的限時已結束。",
+    }).then(() => {
+      window.location.href = "quiz_select.php";
+    });
   }
+}
 
-  // 初始載入（localStorage > 系統偏好 > 預設亮）
-  const saved = localStorage.getItem(STORAGE_KEY);
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const theme = saved || (prefersDark ? 'dark' : 'light');
-  applyTheme(theme);
 
-  // 切換
-  btn?.addEventListener('click', () => {
-    const now = htmlEl.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-    const next = now === 'dark' ? 'light' : 'dark';
-    localStorage.setItem(STORAGE_KEY, next);
-    applyTheme(next);
-  });
 
-  // 跟隨系統偏好變化（如果使用者沒手動選過）
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
-    if(!localStorage.getItem(STORAGE_KEY)){
-      applyTheme(e.matches ? 'dark' : 'light');
-    }
-  });
-})();
+
+// 🔍 全域縮放狀態（針對 #flowchartArea）
+const flowArea = document.getElementById('flowchartArea');
+let flowZoom = 1;
+const ZOOM_STEP = 0.1, ZOOM_MIN = 0.4, ZOOM_MAX = 2.5;
+
+function applyFlowZoom() {
+  const svg = flowArea?.querySelector('svg');
+  if (!svg) return;
+  svg.style.transform = `scale(${flowZoom})`;
+}
+
+function setZoom(v) {
+  flowZoom = Math.min(Math.max(v, ZOOM_MIN), ZOOM_MAX);
+  applyFlowZoom();
+}
+
+
+
+
+
+// // === 🌗 深色模式切換功能 (最終版) ===
+// (function(){
+//   const STORAGE_KEY = 'theme';
+//   const btn = document.getElementById('themeToggle');
+//   const htmlEl = document.documentElement; // 切在 <html>
+
+//   // 套用主題
+//   function applyTheme(mode){
+//     if(mode === 'dark'){
+//       htmlEl.setAttribute('data-theme', 'dark');
+//       if(btn){
+//         btn.classList.remove('btn-outline-dark');
+//         btn.classList.add('btn-outline-light');
+//         btn.innerText = '☀️ 淺色';
+//       }
+//     } else {
+//       htmlEl.removeAttribute('data-theme');
+//       if(btn){
+//         btn.classList.remove('btn-outline-light');
+//         btn.classList.add('btn-outline-dark');
+//         btn.innerText = '🌙 深色';
+//       }
+//     }
+//   }
+
+//   // 初始載入（localStorage > 系統偏好 > 預設亮）
+//   const saved = localStorage.getItem(STORAGE_KEY);
+//   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+//   const theme = saved || (prefersDark ? 'dark' : 'light');
+//   applyTheme(theme);
+
+//   // 切換
+//   btn?.addEventListener('click', () => {
+//     const now = htmlEl.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+//     const next = now === 'dark' ? 'light' : 'dark';
+//     localStorage.setItem(STORAGE_KEY, next);
+//     applyTheme(next);
+//   });
+
+//   // 跟隨系統偏好變化（如果使用者沒手動選過）
+//   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+//     if(!localStorage.getItem(STORAGE_KEY)){
+//       applyTheme(e.matches ? 'dark' : 'light');
+//     }
+//   });
+// })();
 
 
 
