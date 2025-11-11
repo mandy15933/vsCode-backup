@@ -1279,21 +1279,6 @@ if (isExamMode) {
 
 
 
-// 🔍 全域縮放狀態（針對 #flowchartArea）
-const flowArea = document.getElementById('flowchartArea');
-let flowZoom = 1;
-const ZOOM_STEP = 0.1, ZOOM_MIN = 0.4, ZOOM_MAX = 2.5;
-
-function applyFlowZoom() {
-  const svg = flowArea?.querySelector('svg');
-  if (!svg) return;
-  svg.style.transform = `scale(${flowZoom})`;
-}
-
-function setZoom(v) {
-  flowZoom = Math.min(Math.max(v, ZOOM_MIN), ZOOM_MAX);
-  applyFlowZoom();
-}
 
 
 

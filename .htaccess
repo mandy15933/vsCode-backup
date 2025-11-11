@@ -1,0 +1,9 @@
+# .htaccess（放在網站根目錄）
+RewriteEngine On
+RewriteBase /
+
+# 把 /practice_drag/6 轉發到 practice_drag.php?question_id=6
+RewriteRule ^practice_drag/([0-9]+)/?$ /practice_drag.php?question_id=$1 [L,QSA]
+
+# 如果你用 GUID（字母數字與連字號），也可以：
+# RewriteRule ^practice_drag/([A-Za-z0-9\-]+)/?$ /practice_drag.php?guid=$1 [L,QSA]
