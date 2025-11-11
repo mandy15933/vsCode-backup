@@ -206,6 +206,7 @@ $remaining = (int)($remainRow['remaining'] ?? 0);
     <audio id="soundCorrect" src="sounds/correct.mp3" preload="auto"></audio>
     <audio id="soundMove" src="sounds/move.mp3?v=1" preload="auto"></audio>
     <link rel="stylesheet" href="style_practice_drag.css?v=2.0">
+    <script src="feedback_modal.js?v=1.0"></script>
 </head>
 <body>
 <?php include 'Navbar.php'; ?>
@@ -444,10 +445,17 @@ const codeList = document.getElementById("codeList");
 shuffled.forEach(row => {
   const clean = row.text.replace(/^\s+/, "");
   const li = document.createElement("li");
-  li.className = "list-group-item code-line";
-  li.setAttribute("data-indent", "0");
-  li.innerHTML = `<pre><code class="language-python">${clean}</code></pre>`;
-  codeList.appendChild(li);
+    li.className = "list-group-item code-line";
+    li.setAttribute("data-indent", "0");
+
+    const pre = document.createElement("pre");
+    const code = document.createElement("code");
+    code.className = "language-python";
+    code.textContent = clean; // ✅ 這樣自動跳脫 HTML
+
+    pre.appendChild(code);
+    li.appendChild(pre);
+    codeList.appendChild(li);
 });
 
 hljs.highlightAll();
@@ -814,8 +822,16 @@ const viewedTypesSet = new Set();
 // 防止事件重複綁定
 window._clickBound = window._clickBound || { mindmap: false, flowchart: false, aihint: false };
 
-// 🧩 封裝統一紀錄函式
+window.actionCooldown = window.actionCooldown || {};
+
+// 🧩 封裝統一紀錄函式（防止短時間重複紀錄）
 function recordAction(type) {
+  const now = Date.now();
+
+  // 若同類型行為在 1 秒內重複觸發，就忽略
+  if (actionCooldown[type] && now - actionCooldown[type] < 1000) return;
+  actionCooldown[type] = now;
+
   viewedTypesSet.add(type);
   if (type === "mindmap") mindmapClicks++;
   if (type === "flowchart") flowchartClicks++;
@@ -917,6 +933,7 @@ if (aiHintBtn && !window._clickBound.aihint) {
 }
 
 // === ✅ 提交答案 ===
+// === ✅ 提交答案 ===
 const submitBtn = document.getElementById("submitOrder");
 if (submitBtn) {
   submitBtn.addEventListener("click", async () => {
@@ -932,7 +949,6 @@ if (submitBtn) {
       .map(li => " ".repeat((parseInt(li.getAttribute("data-indent")) || 0) * 4) + li.innerText.trim())
       .join("\n");
     const aiComment = aiHintArea?.innerText?.trim() || "";
-
     const viewedTypes = Array.from(viewedTypesSet);
 
     const payload = {
@@ -949,35 +965,133 @@ if (submitBtn) {
       test_group_id: <?= $testGroupId ? (int)$testGroupId : 'null' ?>
     };
 
-    fetch("save_answer.php", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    })
-      .then(res => res.json())
-      .then(data => {
-        console.log("✅ 儲存結果：", data);
-        if (isCorrect) {
-          playSound("soundCorrect", 1);
-          Swal.fire({
-            icon: "success",
-            title: "✅ 正確",
-            text: humanMsg,
-            timer: 1500,
-            showConfirmButton: false
-          });
+    try {
+      const res = await fetch("save_answer.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      console.log("✅ 儲存結果：", data);
+
+      // ❌ 答錯時
+      if (!isCorrect) {
+        
+    return; // 不再顯示第二次 Swal
+    }
+
+      // ✅ 答對時
+      playSound("soundCorrect", 1);
+      await Swal.fire({
+        icon: "success",
+        title: "✅ 正確",
+        text: humanMsg,
+        timer: 1000,
+        showConfirmButton: false
+      });
+
+      // === 🧠 檢查是否使用過輔助工具 ===
+    const usedTools = [];
+    if (viewedTypesSet.has("mindmap")) usedTools.push("mindmap");
+    if (viewedTypesSet.has("flowchart")) usedTools.push("flowchart");
+
+    const nextUrl = `practice_drag.php?question_id=<?= $nextId ?><?php if ($testGroupId): ?>&test_group_id=<?= $testGroupId ?><?php endif; ?>`;
+
+    if (usedTools.length > 0) {
+    try {
+        // 🔍 檢查哪些問卷尚未填寫
+        const feedbackCheck = await fetch(`check_feedback.php?question_id=<?= $questionId ?>`);
+        const feedbackData = await feedbackCheck.json();
+        const alreadyAnswered = feedbackData.answered || [];
+
+        const remainingTools = usedTools.filter(t => !alreadyAnswered.includes(t));
+
+        // 若兩個都已填過，就直接跳下一題
+        if (remainingTools.length === 0) {
+        window.location.href = nextUrl;
+        return;
         }
-      })
-      .catch(err => {
+
+        // ✅ 依序顯示問卷（例如先心智圖 → 再流程圖）
+        for (const toolType of remainingTools) {
+        await showFeedbackModal(toolType, <?= $questionId ?>);
+        }
+
+        // ✅ 所有問卷完成 → 小提示再跳轉
+        await Swal.fire({
+        icon: "success",
+        title: "✅ 已完成所有問卷",
+        text: "感謝你的回饋！即將進入下一題～",
+        timer: 1200,
+        showConfirmButton: false,
+        allowOutsideClick: false
+        });
+
+        window.location.href = nextUrl;
+
+    } catch (err) {
+        console.error("💥 問卷流程錯誤：", err);
+        await Swal.fire({
+        icon: "error",
+        title: "💥 無法載入問卷",
+        text: "伺服器出現錯誤，請稍後再試。"
+        });
+    }
+
+    } else {
+    // 🧩 未使用任何輔助工具 → 直接跳轉
+        goToNextQuestion();
+    }
+    } catch (err) {
         console.error("💥 儲存錯誤：", err);
         Swal.fire({
-          icon: "error",
-          title: "💥 儲存失敗",
-          text: err.message
+        icon: "error",
+        title: "💥 系統錯誤",
+        text: err.message
         });
-      });
-  });
+    }
+    });
+    }
+
+
+
+// === 🎯 題組模式跳轉控制 ===
+function goToNextQuestion() {
+  const testGroupId = <?= $testGroupId ? $testGroupId : 'null' ?>;
+  const currentQid = <?= $questionId ?>;
+
+  // 題組題目順序（由 PHP 輸出）
+  const groupQuestions = <?= isset($questionIds) ? json_encode($questionIds) : '[]' ?>;
+  const currentIndex = groupQuestions.indexOf(currentQid);
+
+  if (testGroupId && currentIndex !== -1) {
+    // ✅ 測驗模式邏輯
+    if (currentIndex < groupQuestions.length - 1) {
+      const nextQid = groupQuestions[currentIndex + 1];
+      const nextUrl = `practice_drag.php?question_id=${nextQid}&test_group_id=${testGroupId}`;
+      console.log(`➡ 題組跳轉：${currentQid} → ${nextQid}`);
+      setTimeout(() => (window.location.href = nextUrl), 600);
+    } else {
+      // ✅ 題組完成 → 導向結果頁
+      console.log("🎉 題組全部完成！");
+      setTimeout(() => (window.location.href = `quiz_result.php?set=${testGroupId}`), 600);
+    }
+  } else {
+    // 🧩 練習模式照原來章節跳轉
+    let nextUrl = "";
+    if (<?= $nextId ? 1 : 0 ?>) {
+      nextUrl = `practice_drag.php?question_id=<?= $nextId ?>`;
+    } else if (<?= $nextChapterFirstQId ? 1 : 0 ?>) {
+      nextUrl = `practice_drag.php?question_id=<?= $nextChapterFirstQId ?>`;
+    } else {
+      nextUrl = "chapter_list.php";
+    }
+    setTimeout(() => (window.location.href = nextUrl), 600);
+  }
 }
+
+
+
 
 
 
@@ -1032,6 +1146,7 @@ async function compareCodeOrder() {
         else humanMsg = "💡 程式順序與縮排都有錯誤，請再試一次！";
 
         // === Step 8. 顯示人工提示 ===
+        playSound("soundError", 0.8);
         await Swal.fire({
             icon: "error",
             title: "❌ 錯誤",
@@ -1053,6 +1168,9 @@ async function compareCodeOrder() {
         return { result: false, message: "💥 compareCodeOrder 錯誤：" + err.message };
     }
 }
+
+
+
 
 
 // === 🌗 深色模式切換功能 (最終版) ===

@@ -229,3 +229,20 @@ html[data-theme="dark"] {
   --nav-fg: #e5e7eb;
   --tab-bg: #11151d;
 }
+
+.stylish-range {
+  height: 6px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+.stylish-range::-webkit-slider-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #007bff;
+  transition: transform 0.2s;
+}
+.stylish-range::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
