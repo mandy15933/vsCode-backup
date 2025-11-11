@@ -1,0 +1,23 @@
+@echo off
+setlocal
+
+rem === 設定資料庫資訊 ===
+set DB_USER=root
+set DB_PASS=
+set DB_NAME=pythonlab   rem ← 這裡改成你實際的資料庫名稱
+
+rem === 設定備份存放路徑 ===
+set BACKUP_PATH=C:\xampp\htdocs\_db_backup
+
+rem === 如果資料夾不存在就建立 ===
+if not exist "%BACKUP_PATH%" mkdir "%BACKUP_PATH%"
+
+rem === 產生檔名：backup_2025-11-10_12-30.sql ===
+set FILE_NAME=backup_%date:~0,4%-%date:~5,2%-%date:~8,2%_%time:~0,2%-%time:~3,2%.sql
+set FILE_NAME=%FILE_NAME: =0%   rem 讓時間前面的空白補0
+
+rem === 執行匯出 ===
+"C:\xampp\mysql\bin\mysqldump.exe" -u%DB_USER% -p%DB_PASS% %DB_NAME% > "%BACKUP_PATH%\%FILE_NAME%"
+
+echo MySQL 資料庫備份完成：%BACKUP_PATH%\%FILE_NAME%
+endlocal

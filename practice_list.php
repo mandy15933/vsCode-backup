@@ -58,7 +58,10 @@ if ($isLoggedIn) {
             MAX(CASE WHEN sa.is_correct = 1 THEN 1 ELSE 0 END) AS is_correct
         FROM questions q
         LEFT JOIN student_answers sa 
-            ON q.id = sa.question_id AND sa.user_id = ?
+        ON q.id = sa.question_id 
+        AND sa.user_id = ? 
+        AND (sa.test_group_id IS NULL OR sa.answer_mode = 'practice')
+
         WHERE q.chapter = ?
         GROUP BY q.id, q.title, q.difficulty, q.description
         ORDER BY q.id ASC

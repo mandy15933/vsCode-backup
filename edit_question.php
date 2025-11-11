@@ -157,9 +157,10 @@ body { background:#f8f9fa; }
                 <textarea name="code_lines" id="codeLinesInput" class="form-control" rows="6"><?=htmlspecialchars(implode("\n", json_decode($question['code_lines'], true) ?? []))?></textarea>
             </div>
             <div class="d-flex gap-2 mb-3">
-                <button type="button" class="btn btn-outline-info" id="generateDiagram">🧩 AI 生成心智圖與流程圖</button>
-                <span class="badge bg-light text-dark border badge-tip">會依據上方「標題、描述、測資」自動產生</span>
+                <button type="button" class="btn btn-outline-primary" id="generateMindmap">🧠 AI 生成心智圖</button>
+                <button type="button" class="btn btn-outline-success" id="generateFlowchart">🔄 AI 生成流程圖</button>
             </div>
+
 
             <div class="mb-3">
               <label class="form-label fw-bold">測資（至少兩組）</label>
@@ -677,83 +678,135 @@ function showToast(msg, type="primary"){
   toast.show();
 }
 
-// ---------- AI 生成（心智圖 + 流程圖） ----------
-document.getElementById('generateDiagram').addEventListener('click', ()=> {
-  const title = document.querySelector('[name=title]').value.trim();
+// === 🧠 AI 生成心智圖 ===
+// === 🧠 AI 生成心智圖 ===
+document.getElementById('generateMindmap').addEventListener('click', async () => {
   const description = document.getElementById('descInput').value.trim();
-  const test_cases = document.querySelector('[name=test_cases]').value.trim();
+  const test_cases = document.getElementById('test_cases_input').value.trim();
 
-  if(!title || !description){
-    showToast("⚠️ 請先輸入題目標題與描述！", "warning");
+  if (!description) {
+    showToast("⚠️ 請先輸入題目描述！", "warning");
     return;
   }
 
-  const btn = document.getElementById('generateDiagram');
+  const btn = document.getElementById('generateMindmap');
   const original = btn.innerHTML;
   btn.disabled = true;
   btn.innerHTML = '⏳ 生成中…';
-    // 顯示 Loading 動畫
+
   const mindmapEditor = document.getElementById('mindmapEditor');
-  const flowchartArea = document.getElementById('flowchartArea');
   mindmapEditor.classList.add('loading');
   mindmapEditor.innerHTML = '<div class="spinner-border text-primary" role="status"></div>';
+
+  try {
+    const res = await fetch('generate_mindmap.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ description, test_cases })
+    });
+
+    const data = await res.json();
+
+    if (data.error) {
+      showToast('❌ 生成失敗：' + data.error, "danger");
+      return;
+    }
+
+    // ✅ 清空舊內容
+    mindmapEditor.classList.remove('loading');
+    mindmapEditor.innerHTML = '';
+
+    // ✅ 若有舊實例則清除
+    if (window.jm && typeof jm.clear === 'function') {
+      jm.clear();
+    }
+
+    // ✅ 修正重複 ID
+    function ensureUniqueIds(node, used = new Set()) {
+      if (used.has(node.id)) {
+        node.id = node.id + "_" + Math.floor(Math.random() * 10000);
+      }
+      used.add(node.id);
+      if (node.children) {
+        node.children.forEach(child => ensureUniqueIds(child, used));
+      }
+    }
+    if (data?.data) ensureUniqueIds(data.data);
+
+    // ✅ 顯示心智圖
+    jm = new jsMind({ container: 'mindmapEditor', editable: true, theme: 'primary' });
+    jm.show(data);
+
+    // ✅ 同步 JSON 編輯區
+    mindmapJsonInput.value = JSON.stringify(data, null, 2);
+    const jsonArea = document.getElementById('jsonArea');
+    if (jsonArea) jsonArea.value = mindmapJsonInput.value;
+
+    showToast("✅ 心智圖生成完成", "success");
+  } catch (err) {
+    console.error(err);
+    showToast('伺服器錯誤，請稍後再試', "danger");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = original;
+    mindmapEditor.classList.remove('loading');
+    mindmapEditor.querySelectorAll('.spinner-border').forEach(el => el.remove());
+  }
+});
+
+
+
+// === 🔄 AI 生成流程圖 ===
+document.getElementById('generateFlowchart').addEventListener('click', async () => {
+  const code_lines = document.getElementById('codeLinesInput').value.trim();
+
+  if (!code_lines) {
+    showToast("⚠️ 請先輸入標準解答程式碼！", "warning");
+    return;
+  }
+
+  const btn = document.getElementById('generateFlowchart');
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '⏳ 生成中…';
+
+  const flowchartArea = document.getElementById('flowchartArea');
   flowchartArea.classList.add('loading');
   flowchartArea.innerHTML = '<div class="spinner-border text-success" role="status"></div>';
 
-  fetch('generate_diagram.php',{
-    method:'POST',
-    headers:{'Content-Type':'application/x-www-form-urlencoded'},
-    body:new URLSearchParams({title,description,test_cases})
-  })
-  .then(res=>res.json())
-  .then(data=>{
-        if(data.error){
-            showToast('⚠️ 產生失敗：' + data.error, "danger");
-            return;
-        }
+  try {
+    const res = await fetch('generate_flowchart.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ code_lines })
+    });
+    const data = await res.json();
 
-        // 移除 loading 狀態
-        mindmapEditor.classList.remove('loading');
-        flowchartArea.classList.remove('loading');
-        mindmapEditor.innerHTML = "";
-        flowchartArea.innerHTML = "";
+    if (data.error) {
+      showToast('❌ 生成失敗：' + data.error, "danger");
+      return;
+    }
 
-        // --- 心智圖 ---
-        if(data.mindmap){
-            try{
-            // 重新初始化 jsMind，避免因為容器 display:none 進 compatibility mode
-            jm = new jsMind({container:'mindmapEditor', editable:true, theme:'primary'});
-            jm.show(data.mindmap);
-
-            mindmapJsonInput.value = JSON.stringify(data.mindmap,null,2);
-            document.getElementById('jsonArea').value = mindmapJsonInput.value;
-            }catch(e){
-            console.warn('心智圖載入失敗：', e);
-            }
-        }
-
-        // --- 流程圖 ---
-        if(data.flowchart){
-            const normalized = normalizeFlowchart(data.flowchart);
-            if(normalized){
-            flowchartJsonInput.value = JSON.stringify(normalized,null,2);
-            document.getElementById('flowchartEditor').value = flowchartJsonInput.value;
-            updateFlowchart(normalized);
-            }else{
-            showToast('⚠️ AI 回傳的流程圖格式不正確（需包含 nodes / edges）', "warning");
-            }
-        }
-        })
-
-  .catch(err=>{
+    // ✅ 顯示流程圖
+    const normalized = normalizeFlowchart(data);
+    if (normalized) {
+      flowchartJsonInput.value = JSON.stringify(normalized, null, 2);
+      document.getElementById('flowchartEditor').value = flowchartJsonInput.value;
+      updateFlowchart("flowchartArea", normalized);
+      showToast("✅ 流程圖生成完成", "success");
+    } else {
+      showToast('⚠️ AI 回傳的流程圖格式不正確（需包含 nodes / edges）', "warning");
+    }
+  } catch (err) {
     console.error(err);
     showToast('伺服器錯誤，請稍後再試', "danger");
-  })
-  .finally(()=>{
+  } finally {
     btn.disabled = false;
     btn.innerHTML = original;
-  });
+    flowchartArea.classList.remove('loading');
+  }
 });
+
 
 </script>
 </body>

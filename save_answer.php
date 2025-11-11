@@ -2,130 +2,144 @@
 session_start();
 require 'db.php';
 
-// 🔹 驗證登入
-$userId = $_SESSION['user_id'] ?? 0;
-if ($userId <= 0) {
-    echo json_encode(['success' => false, 'message' => '未登入']);
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
+header('Content-Type: application/json; charset=utf-8');
+
+// === 1️⃣ 讀取前端 JSON ===
+$raw = file_get_contents("php://input");
+$raw = preg_replace('/^\xEF\xBB\xBF/', '', $raw); // 移除 BOM
+file_put_contents("debug_input.txt", "[".date('H:i:s')."] ".$raw."\n", FILE_APPEND);
+
+$data = json_decode($raw, true);
+if (json_last_error() !== JSON_ERROR_NONE) {
+    echo json_encode(["success" => false, "message" => "JSON decode error: " . json_last_error_msg()]);
+    exit;
+}
+if (!is_array($data)) {
+    echo json_encode(["success" => false, "message" => "❌ 無效 JSON 結構"]);
     exit;
 }
 
-// 🔹 接收 JSON 資料
-$data = json_decode(file_get_contents("php://input"), true);
-$questionId = (int)($data['question_id'] ?? 0);
-$isCorrect = (int)($data['is_correct'] ?? 0);
-$timeSpent = (int)($data['time_spent'] ?? 0);
-$code = $data['code'] ?? '';
-$aiComment = $data['ai_comment'] ?? null;
-$mindmapClicks = (int)($data['mindmap_clicks'] ?? 0);
+// === 2️⃣ 解析資料 ===
+$userId          = $_SESSION['user_id'] ?? 1;
+$questionId      = (int)($data['question_id'] ?? 0);
+$isCorrect       = (int)($data['is_correct'] ?? 0);
+$timeSpent       = (int)($data['time_spent'] ?? 0);
+$mindmapClicks   = (int)($data['mindmap_clicks'] ?? 0);
 $flowchartClicks = (int)($data['flowchart_clicks'] ?? 0);
-$viewedTypes = json_encode($data['viewed_types'] ?? [], JSON_UNESCAPED_UNICODE);
-$testGroupId = $data['test_group_id'] ?? null;
+$aiHintClicks    = (int)($data['aiHint_clicks'] ?? 0);
+$aiComment       = $data['ai_comment'] ?? '';
+$testGroupId     = isset($data['test_group_id']) && $data['test_group_id'] !== '' ? (int)$data['test_group_id'] : null;
 
-// ✅ 查章節 ID
+// viewed_types 可能是 JSON 字串，也可能是陣列
+$viewedRaw = $data['viewed_types'] ?? '[]';
+if (is_string($viewedRaw)) {
+    $viewed_types = json_decode($viewedRaw, true) ?: [];
+} else {
+    $viewed_types = $viewedRaw;
+}
+$viewedJson = json_encode($viewed_types, JSON_UNESCAPED_UNICODE);
+
+// === 3️⃣ 查章節 ID ===
 $stmt = $conn->prepare("SELECT chapter FROM questions WHERE id=?");
 $stmt->bind_param("i", $questionId);
 $stmt->execute();
-$chapterRow = $stmt->get_result()->fetch_assoc();
+$stmt->bind_result($chapterId);
+$stmt->fetch();
 $stmt->close();
-$chapterId = $chapterRow['chapter'] ?? null;
+$chapterId = $chapterId ?? null;
 
-if (!$chapterId) {
-    echo json_encode(['success' => false, 'message' => '找不到對應章節']);
-    exit;
-}
+// === 4️⃣ 查是否已有紀錄 ===
+$stmt = $conn->prepare("SELECT id, attempts, first_correct_time FROM student_answers WHERE user_id=? AND question_id=?");
+$stmt->bind_param("ii", $userId, $questionId);
+$stmt->execute();
+$existing = $stmt->get_result()->fetch_assoc();
+$stmt->close();
 
-// 🔹 檢查題組模式（是否存在 test_group_id）
-$isTestMode = !empty($testGroupId);
+$passStatus = $isCorrect ? '通過' : '未通過';
 
-// 🧭 建立測驗 session（題組模式專用）
-$testSessionId = null;
-if ($isTestMode) {
-    // 如果目前 session 沒有 test_session_id，建立新的
-    if (!isset($_SESSION['current_test_session'][$testGroupId])) {
-        $_SESSION['current_test_session'][$testGroupId] = uniqid("TEST_", true);
+// === 5️⃣ 更新或新增 ===
+if ($existing) {
+    // 更新（累加次數與點擊）
+    $newAttempts = ($existing['attempts'] ?? 0) + 1;
+    $firstCorrect = $existing['first_correct_time'];
+    if ($isCorrect && !$firstCorrect) {
+        $firstCorrect = date('Y-m-d H:i:s');
     }
-    $testSessionId = $_SESSION['current_test_session'][$testGroupId];
-}
 
-// 🔹 查詢作答紀錄（練習模式）
-if (!$isTestMode) {
     $stmt = $conn->prepare("
-        SELECT MAX(attempts) AS last_attempts, MAX(is_correct) AS has_passed 
-        FROM student_answers 
-        WHERE user_id=? AND question_id=? AND test_group_id IS NULL
+        UPDATE student_answers
+        SET is_correct=?, attempts=?, time_spent=?,
+            mindmap_clicks = mindmap_clicks + ?,
+            flowchart_clicks = flowchart_clicks + ?,
+            aiHint_clicks = aiHint_clicks + ?,
+            viewed_types=?, ai_comment=?,
+            test_group_id=?, pass_status=?,
+            first_correct_time=IFNULL(?, first_correct_time),
+            answered_at=NOW()
+        WHERE user_id=? AND question_id=?;
     ");
-    $stmt->bind_param("ii", $userId, $questionId);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-
-    $attempts = ($row['last_attempts'] ?? 0) + 1;
-    $hasPassedBefore = ($row['has_passed'] ?? 0);
-
-    // ✅ 若已通過且這次又錯誤，不再記錄錯誤（避免污染資料）
-    if ($hasPassedBefore && $isCorrect == 0) {
-        echo json_encode(['success' => true, 'message' => '已通過，不再計入錯誤紀錄']);
+    if (!$stmt) {
+        echo json_encode(["success" => false, "message" => "SQL prepare failed: " . $conn->error]);
         exit;
     }
 
+    $stmt->bind_param(
+        "iiiiii ssissii",
+        $isCorrect,        // i
+        $newAttempts,      // i
+        $timeSpent,        // i
+        $mindmapClicks,    // i
+        $flowchartClicks,  // i
+        $aiHintClicks,     // i
+        $viewedJson,       // s
+        $aiComment,        // s
+        $testGroupId,      // i
+        $passStatus,       // s
+        $firstCorrect,     // s
+        $userId,           // i
+        $questionId        // i
+    );
+    $stmt->execute();
+    $stmt->close();
+
 } else {
-    // 題組模式：每次測驗都重新計數
-    $attempts = 1;
-    $hasPassedBefore = 0;
+    // 新增
+    $firstCorrect = $isCorrect ? date('Y-m-d H:i:s') : null;
+
+    $stmt = $conn->prepare("
+        INSERT INTO student_answers 
+        (user_id, question_id, is_correct, attempts, first_correct_time, answered_at, time_spent,
+         mindmap_clicks, flowchart_clicks, aiHint_clicks, viewed_types, chapter_id,
+         test_group_id, ai_comment, answer_mode, pass_status)
+        VALUES (?, ?, ?, 1, ?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?, 'practice', ?);
+    ");
+    if (!$stmt) {
+        echo json_encode(["success" => false, "message" => "SQL prepare failed: " . $conn->error]);
+        exit;
+    }
+
+    $stmt->bind_param(
+        "iii siiii s iiss s",
+        $userId,           // i
+        $questionId,       // i
+        $isCorrect,        // i
+        $firstCorrect,     // s
+        $timeSpent,        // i
+        $mindmapClicks,    // i
+        $flowchartClicks,  // i
+        $aiHintClicks,     // i
+        $viewedJson,       // s
+        $chapterId,        // i
+        $testGroupId,      // i
+        $aiComment,        // s
+        $passStatus        // s
+    );
+    $stmt->execute();
+    $stmt->close();
 }
 
-// 🔹 設定第一次通過時間
-$firstCorrectTime = null;
-if ($isCorrect == 1 && !$hasPassedBefore) {
-    $firstCorrectTime = date('Y-m-d H:i:s');
-}
-
-// 🔸 寫入 student_answers
-$stmt = $conn->prepare("
-    INSERT INTO student_answers 
-    (user_id, question_id, is_correct, attempts, first_correct_time, time_spent, 
-     mindmap_clicks, flowchart_clicks, viewed_types, chapter_id, test_group_id, test_session_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-");
-$stmt->bind_param(
-    "iiiisiiisiss",
-    $userId,
-    $questionId,
-    $isCorrect,
-    $attempts,
-    $firstCorrectTime,
-    $timeSpent,
-    $mindmapClicks,
-    $flowchartClicks,
-    $viewedTypes,
-    $chapterId,
-    $testGroupId,
-    $testSessionId
-);
-if (!$stmt->execute()) {
-    echo json_encode(['success' => false, 'message' => '插入 student_answers 失敗', 'error' => $stmt->error]);
-    exit;
-}
-
-$studentAnswerId = $conn->insert_id;
-$stmt->close();
-
-// 🔸 寫入 student_code_history
-$stmt = $conn->prepare("
-    INSERT INTO student_code_history (student_answer_id, code, ai_comment)
-    VALUES (?, ?, ?)
-");
-$stmt->bind_param("iss", $studentAnswerId, $code, $aiComment);
-$stmt->execute();
-$stmt->close();
-
-// ✅ 回傳結果
-echo json_encode([
-    'success' => true,
-    'message' => '作答紀錄已儲存',
-    'answer_id' => $studentAnswerId,
-    'attempts' => $attempts,
-    'is_correct' => $isCorrect,
-    'test_session_id' => $testSessionId
-]);
+// === 6️⃣ 回傳成功訊息 ===
+echo json_encode(["success" => true, "message" => "✅ 作答紀錄已更新"]);
 ?>

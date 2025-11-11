@@ -83,14 +83,15 @@ $stmt = $conn->prepare("
     SELECT 
       (SELECT COUNT(*) 
          FROM questions 
-        WHERE chapter = ?)                                AS total,
+        WHERE chapter = ?) AS total,
       (SELECT COUNT(DISTINCT q.id)
          FROM questions q
          JOIN student_answers sa
            ON sa.question_id = q.id
           AND sa.user_id = ?
           AND sa.is_correct = 1
-        WHERE q.chapter = ?)                              AS done
+          AND (sa.test_group_id IS NULL OR sa.answer_mode = 'practice')
+        WHERE q.chapter = ?) AS done
 ");
 $stmt->bind_param("iii", $chapterId, $userId, $chapterId);
 $stmt->execute();
@@ -231,7 +232,7 @@ $remaining = (int)($remainRow['remaining'] ?? 0);
                     $placeholders = implode(',', array_fill(0, $totalInGroup, '?'));
                     $sql = "SELECT COUNT(DISTINCT question_id) AS passed_count
                             FROM student_answers
-                            WHERE user_id=? AND is_correct=1 AND question_id IN ($placeholders)";
+                            WHERE user_id=? AND is_correct=1 AND answer_mode='exam' AND question_id IN ($placeholders)";
                     $stmt = $conn->prepare($sql);
                     $stmt->bind_param('i' . str_repeat('i', $totalInGroup), $userId, ...$questionIds);
                     $stmt->execute();
@@ -315,6 +316,7 @@ $remaining = (int)($remainRow['remaining'] ?? 0);
                     <ul id="codeList" class="list-group mb-3"></ul>
                     <div class="d-flex gap-2">
                         <button id="submitOrder" class="btn btn-cute btn-submit">✅ 提交答案</button>
+                        <button id="aiHintBtn" class="btn btn-outline-primary">🤖 AI提示</button>
                         <button id="indentBtn" class="btn btn-cute btn-outdent">➡ 縮排</button>
                         <button id="outdentBtn" class="btn btn-cute btn-indent">⬅ 反縮排</button>
                         <?php if ($testGroupId): ?>
@@ -357,6 +359,10 @@ $remaining = (int)($remainRow['remaining'] ?? 0);
                                 <button class="nav-link text-dark" id="flowchart-tab" data-bs-toggle="tab"
                                     data-bs-target="#flowchartPane" type="button" role="tab">🔄 流程圖</button>
                             </li>
+                            <li class="nav-item">
+                                <button class="nav-link text-dark" id="aihint-tab" data-bs-toggle="tab"
+                                    data-bs-target="#aihintPane" type="button" role="tab">💬 AI提示</button>
+                            </li>
                         <?php endif; ?>
                     </ul>
 
@@ -385,6 +391,12 @@ $remaining = (int)($remainRow['remaining'] ?? 0);
                                 </div>
                             </div>
                         </div>
+                        <div class="tab-pane fade" id="aihintPane" role="tabpanel">
+                            <div id="aiHintArea" class="border rounded p-3 bg-light" style="min-height: 200px;">
+                                <p class="text-muted">尚未產生 AI 提示。</p>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
             </div>
@@ -400,8 +412,15 @@ const mindmapData   = <?= $mindmapJson ? $mindmapJson : 'null' ?>;
 const flowchartData = <?= $flowchartJson ? $flowchartJson : 'null' ?>;
 const nextChapterFirstQId = <?= $nextChapterFirstQId ? $nextChapterFirstQId : 'null' ?>;
 const linesToShuffle = <?= $linesToShuffle ?>;
+const startTime = Date.now();  // ✅ 記錄開始時間
 
 
+
+window._clickBound = window._clickBound || {
+  mindmap: false,
+  flowchart: false,
+  aihint: false
+};
 
 
 
@@ -786,153 +805,182 @@ function logAction(action) {
         })
     });
 }
-// --- 點擊紀錄 ---
+// === 🪄 初始化 ===
 let mindmapClicks = 0;
 let flowchartClicks = 0;
-let viewedTypes = []; // 用陣列記錄完整操作
-let startTime = Date.now(); // 記錄開始時間
+let aiHintClicks = 0;
+const viewedTypesSet = new Set();
 
-// === 🪄 Tabs 切換動畫 + 音效 ===
+// 防止事件重複綁定
+window._clickBound = window._clickBound || { mindmap: false, flowchart: false, aihint: false };
 
-// 小彈跳動畫效果
+// 🧩 封裝統一紀錄函式
+function recordAction(type) {
+  viewedTypesSet.add(type);
+  if (type === "mindmap") mindmapClicks++;
+  if (type === "flowchart") flowchartClicks++;
+  if (type === "aihint") aiHintClicks++;
+
+  // ✅ 送出後端 log_action.php
+  fetch("log_action.php", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      question_id: <?= $questionId ?>,
+      user_id: <?= $userId ?? 0 ?>,
+      action: type,
+      timestamp: new Date().toISOString()
+    })
+  }).catch(err => console.warn("⚠️ log_action 傳送失敗", err));
+}
+
+// 🪩 小動畫
 function bounceTab(tabEl) {
-    tabEl.style.transition = "transform 0.2s ease";
-    tabEl.style.transform = "scale(1.1)";
-    setTimeout(() => { tabEl.style.transform = "scale(1)"; }, 200);
+  tabEl.style.transition = "transform 0.2s ease";
+  tabEl.style.transform = "scale(1.1)";
+  setTimeout(() => (tabEl.style.transform = "scale(1)"), 200);
 }
 
-// 📑 測資 tab（一定存在）
-const testTab = document.getElementById("test-tab");
-if (testTab) {
-    testTab.addEventListener("shown.bs.tab", (e) => {
-        playSound("soundClick2", 0.6);
-        bounceTab(e.target);
-    });
-}
-
-// 🌐 心智圖 tab（第二週才存在）
+// === 📘 心智圖 Tab ===
 const mindmapTab = document.getElementById("mindmap-tab");
-if (mindmapTab) {
-    mindmapTab.addEventListener("shown.bs.tab", (e) => {
-        playSound("soundClick2", 0.6);
-        bounceTab(e.target);
-        renderMindmap(mindmapData);
-        mindmapClicks++;
-        viewedTypes.push("mindmap");
-    });
+if (mindmapTab && !window._clickBound.mindmap) {
+  window._clickBound.mindmap = true;
+  mindmapTab.addEventListener("shown.bs.tab", (e) => {
+    playSound("soundClick2", 0.6);
+    bounceTab(e.target);
+    renderMindmap(mindmapData);
+    recordAction("mindmap");
+  });
 }
 
-// 🔄 流程圖 tab（第二週才存在）
+// === 🔄 流程圖 Tab ===
 const flowchartTab = document.getElementById("flowchart-tab");
-if (flowchartTab) {
-    flowchartTab.addEventListener("shown.bs.tab", (e) => {
-        playSound("soundClick2", 0.6);
-        bounceTab(e.target);
-        renderFlowchartWithInteraction(flowchartData);
-        flowchartClicks++;
-        viewedTypes.push("flowchart");
-    });
+if (flowchartTab && !window._clickBound.flowchart) {
+  window._clickBound.flowchart = true;
+  flowchartTab.addEventListener("shown.bs.tab", (e) => {
+    playSound("soundClick2", 0.6);
+    bounceTab(e.target);
+    renderFlowchartWithInteraction(flowchartData);
+    recordAction("flowchart");
+  });
 }
 
+// === 🤖 AI 提示按鈕 ===
+const aiHintBtn = document.getElementById("aiHintBtn");
+const aiHintArea = document.getElementById("aiHintArea");
+if (aiHintBtn && !window._clickBound.aihint) {
+  window._clickBound.aihint = true;
+  aiHintBtn.addEventListener("click", async () => {
+    recordAction("aihint"); // ✅ 紀錄
+    aiHintArea.innerHTML = `
+      <div class="text-center text-secondary p-3">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-2">AI 助教正在分析你的程式邏輯...</p>
+      </div>
+    `;
 
+    const studentCode = Array.from(codeList.children)
+      .map(li => " ".repeat((parseInt(li.getAttribute("data-indent")) || 0) * 4) + li.innerText.trim())
+      .join("\n");
+    const correctCode = codeLines.join("\n");
 
+    try {
+      const res = await fetch("ai_feedback_step.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question_title: <?= json_encode($question['title'] ?? '') ?>,
+          question_desc: <?= json_encode($question['description'] ?? '') ?>,
+          student_code: studentCode,
+          correct_code: correctCode,
+          avg_attempts: <?= json_encode($avgAttempts ?? 2.0) ?>
+        })
+      });
 
+      const text = await res.text();
+      const clean = text.trim().replace(/^\uFEFF/, "");
+      const data = clean.startsWith("{") ? JSON.parse(clean) : null;
 
+      if (data) {
+        const step1 = data.step1 ? `<h6>🪜 第一步：</h6><pre class="bg-white p-2 border rounded">${data.step1}</pre>` : "";
+        const step2 = data.step2 ? `<h6>💡 第二步：</h6><pre class="bg-white p-2 border rounded">${data.step2}</pre>` : "";
+        aiHintArea.innerHTML = `<div class="text-start">${step1}${step2 || "<p class='text-muted'>AI 僅提供一階段提示。</p>"}</div>`;
+        const aiTab = new bootstrap.Tab(document.getElementById("aihint-tab"));
+        aiTab.show();
+      } else {
+        aiHintArea.innerHTML = `<p class="text-danger">⚠️ 無法取得 AI 提示，請稍後再試。</p>`;
+      }
+    } catch (err) {
+      aiHintArea.innerHTML = `<p class="text-danger">💥 發生錯誤：${err.message}</p>`;
+    }
+  });
+}
+
+// === ✅ 提交答案 ===
 const submitBtn = document.getElementById("submitOrder");
-
 if (submitBtn) {
-    submitBtn.addEventListener("click", async () => {
-        const checkResult = await compareCodeOrder();  // ✅ 等結果回來
-        if (!checkResult || typeof checkResult.result === "undefined") return;
+  submitBtn.addEventListener("click", async () => {
+    const checkResult = await compareCodeOrder();
+    if (!checkResult || typeof checkResult.result === "undefined") return;
 
-        const isCorrect = checkResult.result;
-        const humanMsg  = checkResult.message || "";
+    const isCorrect = checkResult.result;
+    const humanMsg = checkResult.message || "";
+    playSound("soundClick", 0.6);
 
-        playSound("soundClick", 0.6);
+    const timeSpent = Math.floor((Date.now() - startTime) / 1000);
+    const studentCode = Array.from(codeList.children)
+      .map(li => " ".repeat((parseInt(li.getAttribute("data-indent")) || 0) * 4) + li.innerText.trim())
+      .join("\n");
+    const aiComment = aiHintArea?.innerText?.trim() || "";
 
-        // 🕒 計算作答時間（秒）
-        const timeSpent = Math.floor((Date.now() - startTime) / 1000);
-        const studentCode = Array.from(codeList.children)
-            .map(li => " ".repeat((parseInt(li.getAttribute("data-indent")) || 0) * 4) + li.innerText.trim())
-            .join("\n");
+    const viewedTypes = Array.from(viewedTypesSet);
 
-        // 📦 組 payload
-        const payload = {
-            question_id: <?= $questionId ?>,
-            is_correct: isCorrect ? 1 : 0,
-            time_spent: timeSpent,
-            code: studentCode,
-            mindmap_clicks: mindmapClicks,
-            flowchart_clicks: flowchartClicks,
-            viewed_types: viewedTypes,
-            test_group_id: <?= $testGroupId ? (int)$testGroupId : 'null' ?>
-        };
+    const payload = {
+      question_id: <?= $questionId ?>,
+      is_correct: isCorrect ? 1 : 0,
+      time_spent: timeSpent,
+      code: studentCode,
+      mindmap_clicks: mindmapClicks,
+      flowchart_clicks: flowchartClicks,
+      aiHint_clicks: aiHintClicks,
+      viewed_types: JSON.stringify(viewedTypes),
+      used_ai_visual: viewedTypes.includes("mindmap") || viewedTypes.includes("flowchart"),
+      ai_comment: aiComment,
+      test_group_id: <?= $testGroupId ? (int)$testGroupId : 'null' ?>
+    };
 
-        // 💾 儲存作答紀錄
-        fetch("save_answer.php", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-        })
-        .then(res => res.json())
-        .then(data => {
-            console.log("✅ 作答紀錄已儲存：", data);
-
-            if (isCorrect) {
-                playSound("soundCorrect", 1);
-                <?php if ($testGroupId): ?>
-                    Swal.fire({
-                        icon: "success",
-                        title: "✅ 正確",
-                        html: `
-                            <p>恭喜答對！</p>
-                            <a href="quiz.php?set=<?= $testGroupId ?>" 
-                               class="btn btn-outline-success mt-2">返回題組題目列表</a>
-                        `,
-                        showConfirmButton: false
-                    });
-                <?php else: ?>
-                    Swal.fire({
-                        icon: "success",
-                        title: "✅ 正確",
-                        text: humanMsg,
-                        timer: 1500,
-                        showConfirmButton: false,
-                        willClose: () => {
-                            <?php if (!$chapterFinished && $nextId): ?>
-                                window.location.href = "practice_drag.php?question_id=<?= $nextId ?>";
-                            <?php else: ?>
-                                Swal.fire({
-                                    icon: "success",
-                                    title: "🎉 恭喜",
-                                    text: "本章題目已全部完成！",
-                                    showDenyButton: true,
-                                    confirmButtonText: "確定",
-                                    denyButtonText: "➡ 前往下一章節"
-                                }).then((result) => {
-                                    if (result.isDenied && nextChapterFirstQId) {
-                                        window.location.href = "practice_drag.php?question_id=" + nextChapterFirstQId;
-                                    }
-                                });
-                            <?php endif; ?>
-                        }
-                    });
-                <?php endif; ?>
-            }
-        })
-        .catch(err => {
-            console.error("💥 儲存作答紀錄失敗：", err);
-            Swal.fire({
-                icon: "error",
-                title: "💥 發生錯誤",
-                text: "無法儲存作答紀錄，請稍後再試。"
-            });
+    fetch("save_answer.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    })
+      .then(res => res.json())
+      .then(data => {
+        console.log("✅ 儲存結果：", data);
+        if (isCorrect) {
+          playSound("soundCorrect", 1);
+          Swal.fire({
+            icon: "success",
+            title: "✅ 正確",
+            text: humanMsg,
+            timer: 1500,
+            showConfirmButton: false
+          });
+        }
+      })
+      .catch(err => {
+        console.error("💥 儲存錯誤：", err);
+        Swal.fire({
+          icon: "error",
+          title: "💥 儲存失敗",
+          text: err.message
         });
-    });
+      });
+  });
 }
 
-// ✅ 非同步 compareCodeOrder
-// ✅ 最終版 compareCodeOrder（含 AI Loading 動畫）
+
+
 async function compareCodeOrder() {
     try {
         // === Step 1~4. 取得使用者程式結構 ===
@@ -983,7 +1031,7 @@ async function compareCodeOrder() {
         else if (orderCorrect && !indentCorrect) humanMsg = "⚠️ 順序正確，但縮排層級不對喔！";
         else humanMsg = "💡 程式順序與縮排都有錯誤，請再試一次！";
 
-        // === Step 8. 顯示人工提示（先） ===
+        // === Step 8. 顯示人工提示 ===
         await Swal.fire({
             icon: "error",
             title: "❌ 錯誤",
@@ -991,80 +1039,7 @@ async function compareCodeOrder() {
             confirmButtonText: "知道了"
         });
 
-        // === Step 9. 第二週才顯示 AI 提示 ===
-        if (<?= $week ?> >= 2) {
-            // 🧠 顯示 AI 助教思考中...
-            Swal.fire({
-                title: "🧠 AI 助教思考中...",
-                html: "<b>請稍候，AI 正在分析你的程式邏輯 ⚙️</b>",
-                allowOutsideClick: false,
-                didOpen: () => Swal.showLoading()
-            });
-
-            try {
-                const res = await fetch("ai_feedback_step.php", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        question_title: <?= json_encode($question['title'] ?? '') ?>,
-                        question_desc: <?= json_encode($question['description'] ?? '') ?>,
-                        student_code: studentCode,
-                        correct_code: correctCode,
-                        avg_attempts: <?= json_encode($avgAttempts ?? 2.0) ?>
-                    })
-                });
-
-                const raw = await res.text();
-                const clean = raw.trim().replace(/^\uFEFF/, "");
-                Swal.close(); // ✅ 關閉 loading 畫面
-
-                let data = null;
-                if (clean.startsWith("{")) {
-                    data = JSON.parse(clean);
-                } else {
-                    console.warn("⚠️ AI 回傳非 JSON：", clean);
-                }
-
-                if (data) {
-                    playSound("soundSelect", 0.6);
-                    Swal.fire({
-                        title: "💭 第一步提示",
-                        html: `<pre style="text-align:left;white-space:pre-wrap;">${data.step1 || "AI 暫時無法提供提示"}</pre>`,
-                        icon: "question",
-                        showDenyButton: true,
-                        confirmButtonText: "再給我更多提示 💡",
-                        denyButtonText: "我自己想想 💭"
-                    }).then(result => {
-                        if (result.isConfirmed && data.step2) {
-                            playSound("soundClick2", 0.6);
-                            Swal.fire({
-                                title: "💡 第二步提示",
-                                html: `<pre style="text-align:left;white-space:pre-wrap;">${data.step2}</pre>`,
-                                icon: "info",
-                                width: 600
-                            });
-                        }
-                    });
-                } else {
-                    Swal.fire({
-                        icon: "warning",
-                        title: "⚠️ AI 無法提供提示",
-                        text: "AI 回傳格式有誤或內容為空，請稍後再試。"
-                    });
-                }
-
-            } catch (err) {
-                Swal.close(); // 保險關閉
-                console.error("💥 AI 回饋錯誤：", err);
-                Swal.fire({
-                    icon: "error",
-                    title: "💥 AI 提示發生錯誤",
-                    text: "伺服器連線或格式錯誤，請稍後再試。"
-                });
-            }
-        }
-
-        // === Step 10. 最終回傳人工結果 ===
+        // === Step 9. 回傳人工檢查結果 ===
         return { result: false, message: humanMsg };
 
     } catch (err) {
@@ -1078,10 +1053,6 @@ async function compareCodeOrder() {
         return { result: false, message: "💥 compareCodeOrder 錯誤：" + err.message };
     }
 }
-
-
-
-
 
 
 // === 🌗 深色模式切換功能 (最終版) ===
