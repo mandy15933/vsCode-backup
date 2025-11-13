@@ -191,9 +191,9 @@ body {
           <!-- 🧭 登入後顯示教材／練習 -->
           <?php if ($isLoggedIn): ?>
             <div class="d-flex justify-content-between gap-2">
-              <a href="material.php?chapter=<?= $row['id'] ?>" class="btn btn-outline-dark flex-fill">
+              <!-- <a href="material.php?chapter=<?= $row['id'] ?>" class="btn btn-outline-dark flex-fill">
                 📖 學習教材
-              </a>
+              </a> -->
               <a href="practice_list.php?chapter=<?= $row['id'] ?>" class="btn btn-warning flex-fill">
                 💻 程式練習
               </a>

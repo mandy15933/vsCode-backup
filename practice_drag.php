@@ -3,23 +3,24 @@ session_start();
 
 require 'db.php';
 
-// 🔹 手動控制實驗週次
-$week = 2;   // 第一週：只顯示拖曳 + 測資
-// $week = 2;   // 第二週：開放心智圖與流程圖
 
 
-// 假設已登入
+// ======================================
+// 1. 使用者資訊與模式判斷
+// ======================================
 $userId = $_SESSION['user_id'] ?? 1;
-$testGroupId = $_GET['test_group_id'] ?? null;
-$isExamMode = !empty($testGroupId);
+$isExamMode = (isset($_GET['test_group_id']) && (int)$_GET['test_group_id'] > 0);
+$testGroupId = $isExamMode ? (int)$_GET['test_group_id'] : null;
 
-// 取得指定題目 ID
+// 需要題目 ID
 if (!isset($_GET['question_id'])) {
     die("❌ 請提供題目 ID，例如：practice_drag.php?question_id=1");
 }
 $questionId = (int)$_GET['question_id'];
 
-// 讀取題目
+// ======================================
+// 2. 讀取題目內容
+// ======================================
 $stmt = $conn->prepare("SELECT * FROM questions WHERE id=?");
 $stmt->bind_param("i", $questionId);
 $stmt->execute();
@@ -30,43 +31,30 @@ if (!$question) {
     die("❌ 找不到這個題目 (ID: $questionId)");
 }
 
-$chapterId = $question['chapter'];
-$testCases = json_decode($question['test_cases'], true) ?? [];
-$codeLines = json_decode($question['code_lines'], true) ?? [];
+$chapterId     = (int)$question['chapter'];
+$testCases     = json_decode($question['test_cases'], true) ?? [];
+$codeLines     = json_decode($question['code_lines'], true) ?? [];
 $mindmapJson   = $question['mindmap_json'] ?? null;
 $flowchartJson = $question['flowchart_json'] ?? null;
 
-// 找上一題
-$stmt = $conn->prepare("SELECT id FROM questions WHERE chapter=? AND id<? ORDER BY id DESC LIMIT 1");
-$stmt->bind_param("ii", $chapterId, $questionId);
-$stmt->execute();
-$prevQuestion = $stmt->get_result()->fetch_assoc();
-$stmt->close();
-$prevId = $prevQuestion['id'] ?? null;
-
-// 找下一題
-$stmt = $conn->prepare("SELECT id FROM questions WHERE chapter=? AND id>? ORDER BY id ASC LIMIT 1");
-$stmt->bind_param("ii", $chapterId, $questionId);
-$stmt->execute();
-$nextQuestion = $stmt->get_result()->fetch_assoc();
-$stmt->close();
-$nextId = $nextQuestion['id'] ?? null;
-
-// 找下一章節的第一題
+// ======================================
+// 3. 找上一題
+// ======================================
 $stmt = $conn->prepare("
     SELECT id FROM questions 
-    WHERE chapter = ? 
-    ORDER BY id ASC LIMIT 1
+    WHERE chapter=? AND id<? 
+    ORDER BY id DESC LIMIT 1
 ");
-$nextChap = $chapterId + 1;
-$stmt->bind_param("i", $nextChap);
+$stmt->bind_param("ii", $chapterId, $questionId);
 $stmt->execute();
-$nextChapRow = $stmt->get_result()->fetch_assoc();
+$row = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
-$nextChapterFirstQId = $nextChapRow['id'] ?? null;
+$prevId = $row['id'] ?? null;
 
-// 查詢是否還有未完成題目
+// ======================================
+// 4. 找下一題
+// ======================================
 $stmt = $conn->prepare("
     SELECT id FROM questions 
     WHERE chapter=? AND id>? 
@@ -74,25 +62,42 @@ $stmt = $conn->prepare("
 ");
 $stmt->bind_param("ii", $chapterId, $questionId);
 $stmt->execute();
-$nextQuestion = $stmt->get_result()->fetch_assoc();
+$row = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
-$nextId = $nextQuestion['id'] ?? null;
+$nextId = $row['id'] ?? null;
 
-// 🔹 判斷章節題目總數 & 學生已完成題數
+// ======================================
+// 5. 找下一章節的第一題
+// ======================================
+$nextChap = $chapterId + 1;
+
+$stmt = $conn->prepare("
+    SELECT id FROM questions 
+    WHERE chapter=? 
+    ORDER BY id ASC LIMIT 1
+");
+$stmt->bind_param("i", $nextChap);
+$stmt->execute();
+$row = $stmt->get_result()->fetch_assoc();
+$stmt->close();
+
+$nextChapterFirstQId = $row['id'] ?? null;
+
+// ======================================
+// 6. 章節題目進度（僅練習模式）
+// ======================================
 $stmt = $conn->prepare("
     SELECT 
-      (SELECT COUNT(*) 
-         FROM questions 
-        WHERE chapter = ?) AS total,
-      (SELECT COUNT(DISTINCT q.id)
-         FROM questions q
-         JOIN student_answers sa
-           ON sa.question_id = q.id
-          AND sa.user_id = ?
-          AND sa.is_correct = 1
-          AND (sa.test_group_id IS NULL OR sa.answer_mode = 'practice')
-        WHERE q.chapter = ?) AS done
+        (SELECT COUNT(*) FROM questions WHERE chapter=?) AS total,
+        (SELECT COUNT(DISTINCT q.id)
+           FROM questions q
+           JOIN student_answers sa
+                ON sa.question_id = q.id
+               AND sa.user_id = ?
+               AND sa.is_correct = 1
+               AND (sa.test_group_id IS NULL OR sa.answer_mode='practice')
+           WHERE q.chapter=?) AS done
 ");
 $stmt->bind_param("iii", $chapterId, $userId, $chapterId);
 $stmt->execute();
@@ -100,26 +105,21 @@ $progress = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 $totalQuestions = (int)($progress['total'] ?? 0);
-$doneQuestions  = (int)($progress['done'] ?? 0);
-
+$doneQuestions  = (int)($progress['done']  ?? 0);
 $chapterFinished = ($doneQuestions >= $totalQuestions);
 
-
-
-// 🔹 查詢學生該章節的表現（平均嘗試次數）
+// ======================================
+// 7. 查詢學生該章節的平均嘗試次數
+// ======================================
 $stmt = $conn->prepare("
     SELECT 
         SUM(is_correct=1) AS correct_count,
         COUNT(*) AS total_submissions,
         SUM(attempts) / COUNT(DISTINCT question_id) AS avg_attempts
     FROM student_answers
-    WHERE user_id=? AND question_id IN (
-        SELECT id FROM questions WHERE chapter=?
-    )
+    WHERE user_id=? 
+      AND question_id IN (SELECT id FROM questions WHERE chapter=?)
 ");
-
-
-
 $stmt->bind_param("ii", $userId, $chapterId);
 $stmt->execute();
 $chapterStats = $stmt->get_result()->fetch_assoc();
@@ -127,7 +127,7 @@ $stmt->close();
 
 $avgAttempts = $chapterStats['avg_attempts'] ?? 1;
 
-// 🔹 根據表現決定要打亂的行數
+// 根據表現動態調整題目難度
 if ($avgAttempts <= 1.2) {
     $linesToShuffle = rand(5, 6); // 高掌握 → 難
 } elseif ($avgAttempts <= 2.0) {
@@ -136,14 +136,20 @@ if ($avgAttempts <= 1.2) {
     $linesToShuffle = rand(2, 3); // 低掌握 → 簡單
 }
 
-// 🔹 取得章節名稱
+// ======================================
+// 8. 取得章節名稱
+// ======================================
 $stmt = $conn->prepare("SELECT title FROM chapters WHERE id=?");
 $stmt->bind_param("i", $chapterId);
 $stmt->execute();
-$stmt->bind_result($chapterTitle);
-$stmt->fetch();
+$result = $stmt->get_result()->fetch_assoc();
 $stmt->close();
-// 查詢目前題目是否已通過
+
+$chapterTitle = $result['title'] ?? '';
+
+// ======================================
+// 9. 查詢目前題目是否已通過
+// ======================================
 $stmt = $conn->prepare("
     SELECT is_correct 
     FROM student_answers 
@@ -156,7 +162,10 @@ $isPassedRow = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 $isPassed = ($isPassedRow && $isPassedRow['is_correct'] == 1);
-// ✅ 檢查章節剩餘題目
+
+// ======================================
+// 10. 檢查章節剩餘題目
+// ======================================
 $stmt = $conn->prepare("
     SELECT COUNT(*) AS remaining
     FROM questions q
@@ -173,7 +182,10 @@ $remainRow = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 $remaining = (int)($remainRow['remaining'] ?? 0);
+
+
 ?>
+
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -181,7 +193,7 @@ $remaining = (int)($remainRow['remaining'] ?? 0);
     <title>拖曳排序題：<?= htmlspecialchars($question['title']) ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsmind/style/jsmind.css" />
     <script src="https://cdn.jsdelivr.net/npm/jsmind/es6/jsmind.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/raphael/2.3.0/raphael.min.js"></script>
@@ -210,6 +222,9 @@ $remaining = (int)($remainRow['remaining'] ?? 0);
     <script src="feedback_modal.js?v=1.0"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="stylesheet" href="anime-yellow-theme.css?v=3.0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.legacy.min.js"></script>
+
 </head>
 <body>
 <?php include 'Navbar.php'; ?>
@@ -289,8 +304,7 @@ $remaining = (int)($remainRow['remaining'] ?? 0);
     <?php endif; ?>
     <div class="row">
         <!-- 題目區 -->
-        <div class="col-12 mb-3">
-            
+          <div class="col-12 mb-3">
             <div class="card border-warning shadow-sm">
                 <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
                     <h4 class="mb-0">📝 題目：<?= htmlspecialchars($question['title']) ?></h4>
@@ -299,7 +313,6 @@ $remaining = (int)($remainRow['remaining'] ?? 0);
                     <?php else: ?>
                         <span class="badge bg-secondary fs-6">⏳ 尚未通過</span>
                     <?php endif; ?>
-                    
                 </div>
                 <div class="card-body">
                     <p class="fs-5 mt-2"><?= nl2br(htmlspecialchars($question['description'])) ?></p>
@@ -309,41 +322,38 @@ $remaining = (int)($remainRow['remaining'] ?? 0);
 
 
         <!-- 左側：拖曳排序 -->
-        <div class="col-lg-6 mb-3">
-            <div class="card border-dark shadow-sm">
-                <div class="card-header  d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">💻 拖曳程式碼區域</h5>
-                    <!-- <button id="themeToggle" class="btn btn-outline-light btn-sm" type="button">
-                        🌙 深色
-                    </button> -->
-                </div>
-
-                <div class="card-body">
+    <div class="col-12 col-lg-6 mb-3">
+        <div class="card border-dark shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">💻 拖曳程式碼區域</h5>
+            </div>
+            <div class="card-body">
                     <p class="text-muted small">
                         你的章節平均嘗試次數：<?= round($avgAttempts,2) ?>  
                         → 本次打亂<strong><?= $linesToShuffle ?></strong> 行
                     </p>
                     <ul id="codeList" class="list-group mb-3"></ul>
-                    <div class="d-flex gap-2">
+                    <div class="d-flex flex-wrap gap-2">
                         <button id="submitOrder" class="btn  btn-submitting">✅ 提交答案</button>
-                        <button id="aiHintBtn" class="btn btn-warning">🤖 AI提示</button>
+                        <?php if (!$isExamMode): ?>
+                            <button id="aiHintBtn" class="btn btn-warning">🤖 AI提示</button>
+                        <?php endif; ?>
                         <button id="indentBtn" class="btn btn-cute btn-dent">➡ 縮排</button>
                         <button id="outdentBtn" class="btn btn-cute btn-dent">⬅ 反縮排</button>
                         <?php if (empty($testGroupId)): ?>
-                            <a href="practice_list.php?chapter=<?= $chapterId ?>" 
-                               class="btn btn-secondary">📘 返回章節列表</a>
+                            <a href="practice_list.php?chapter=<?= $chapterId ?>" class="btn btn-secondary">📘 返回列表</a>
                         <?php endif; ?>
-                        <?php if ($testGroupId): ?>
+                        <?php if ($isExamMode): ?>
                             <!-- 🚩 測驗模式下：只顯示返回題組與題組選單 -->
-                            <a href="quiz.php?set=<?= $testGroupId ?>" 
-                               class="btn btn-secondary">📘 返回題組</a>
+                            <a href="quiz.php?set=<?= $testGroupId ?>" class="btn btn-secondary">📘 返回題組</a>
                         <?php else: ?>  <!-- 🚫 測驗模式不顯示上下題 -->
-                            <?php if ($prevId): ?>
-                                <a href="practice_drag.php?question_id=<?= $prevId ?>" class="btn-cute btn-nav">⬅ 上一題</a>
-                            <?php endif; ?>
-                            <?php if ($nextId): ?>
-                                <a href="practice_drag.php?question_id=<?= $nextId ?>" class="btn-cute btn-nav">下一題 ➡</a>
-                            <?php endif; ?>
+                                <?php if ($prevId): ?>
+                                    <a href="practice_drag.php?question_id=<?= $prevId ?>" class="btn-cute btn-nav">⬅上一題</a>
+                                <?php endif; ?>
+
+                                <?php if ($nextId): ?>
+                                    <a href="practice_drag.php?question_id=<?= $nextId ?>" class="btn-cute btn-nav">下一題➡</a>
+                                <?php endif; ?>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -351,7 +361,7 @@ $remaining = (int)($remainRow['remaining'] ?? 0);
         </div>
 
         <!-- 右側：提示區 -->
-        <div class="col-lg-6 mb-3">
+        <div class="col-12 col-lg-6 mb-3">
             <div class="card shadow-sm border-warning">
                 <div class="card-header bg-light text-dark border-warning">
                     <h5 class="mb-0">📚 輔助提示</h5>
@@ -364,10 +374,10 @@ $remaining = (int)($remainRow['remaining'] ?? 0);
                                 data-bs-target="#testPane" type="button" role="tab">📑 測資</button>
                         </li>
 
-                        <?php if ($week >= 2): ?>
+                        <?php if (!$isExamMode): ?>
                             <li class="nav-item">
                                 <button class="nav-link text-dark" id="mindmap-tab" data-bs-toggle="tab"
-                                    data-bs-target="#mindmapPane" type="button" role="tab">🌐 心智圖</button>
+                                    data-bs-target="#mindmapPane" type="button" role="tab">🧠 心智圖</button>
                             </li>
                             <li class="nav-item">
                                 <button class="nav-link text-dark" id="flowchart-tab" data-bs-toggle="tab"
@@ -393,7 +403,7 @@ $remaining = (int)($remainRow['remaining'] ?? 0);
                         </div>
                         <!-- 心智圖 -->
                         <div class="tab-pane fade" id="mindmapPane" role="tabpanel">
-                            <div id="mindmapArea" style="width:100%;height:400px;border:1px solid #ddd;"></div>
+                            <div id="mindmapArea" class="mindmap-box"></div>
                         </div>
                         <!-- 流程圖 -->
                         <div class="tab-pane fade" id="flowchartPane" role="tabpanel">
@@ -463,6 +473,22 @@ window.lineMap = lineMap; // ✅ 讓流程圖能全域取用
 
 // === 畫出程式碼 ===
 const codeList = document.getElementById("codeList");
+let selectedLine = null;
+let sortableInstance = null;
+
+function initSortable() {
+    if (sortableInstance) sortableInstance.destroy();
+
+    sortableInstance = new Sortable(codeList, {
+        animation: 150,
+        handle: ".code-line",   // 讓整行可拖
+        ghostClass: "dragging",
+        touchStartThreshold: 5
+    });
+}
+
+initSortable();
+
 shuffled.forEach(row => {
   const clean = row.text.replace(/^\s+/, "");
   const li = document.createElement("li");
@@ -483,10 +509,10 @@ hljs.highlightAll();
 
 // === 拖曳設定 ===
 let selectedLine = null;
-new Sortable(codeList, {
-  animation: 150,
-  onEnd: () => playSound("soundMove", 0.3)
-});
+let sortableInstance = null;
+
+
+
 codeList.addEventListener("click", e => {
   const li = e.target.closest("li");
   if (!li) return;
@@ -567,28 +593,6 @@ document.addEventListener("keydown", e => {
 // 啟動 Highlight.js
 hljs.highlightAll();
 
-// 啟用拖曳排序
-let lastHoverTime = 0; // 防止 hover 音效太密集
-
-new Sortable(codeList, { 
-    animation: 150,
-    onStart: () => playSound("soundHover"), // 拖曳開始音效
-
-    onMove: (evt) => {
-        // 限制音效播放頻率，避免過於頻繁
-        const now = Date.now();
-        if (now - lastHoverTime > 120) { // 每 0.12 秒才允許播放一次
-            playSound("soundMove", 0.25);
-            lastHoverTime = now;
-        }
-    },
-
-    onEnd: (evt) => {
-        if (evt.oldIndex !== evt.newIndex) {
-            playSound("soundMove", 0.4); // 交換成功音效
-        }
-    }
-});
 
 function playSound(id, volume = 1) {
     const audio = document.getElementById(id);
@@ -655,6 +659,7 @@ function renderMindmap(data){
 
 // 流程圖互動 + 程式碼高亮  ===
 function renderFlowchartWithInteraction(rawData) {
+  
   const area = document.getElementById("flowchartArea");
   area.innerHTML = "";
   const data = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
@@ -696,8 +701,9 @@ function renderFlowchartWithInteraction(rawData) {
   // === 綁定互動 ===
     setTimeout(() => {
     const svg = area.querySelector("svg");
-    if (!svg) return;
-
+    if (!svg) {
+        svg.setAttribute("width", "100%");
+        svg.style.maxWidth = "100%";}
     const rects = svg.querySelectorAll("rect, path, polygon");
     rects.forEach(shape => {
         const id = shape.getAttribute("id");
@@ -906,6 +912,10 @@ if (flowchartTab && !window._clickBound.flowchart) {
 // === 🤖 AI 提示按鈕 ===
 // === 🤖 AI 提示按鈕 ===
 const aiHintBtn = document.getElementById("aiHintBtn");
+if (<?= $isExamMode ? 'true' : 'false' ?>) {
+    // 測驗模式：完全停用所有 AI 功能
+    if (aiHintBtn) aiHintBtn.style.display = "none";
+}
 const aiHintArea = document.getElementById("aiHintArea");
 
 if (aiHintBtn && !window._clickBound.aihint) {

@@ -173,13 +173,17 @@ body {
                         <a href="practice_drag.php?question_id=<?= $q['id'] ?>" 
                            class="btn btn-warning w-100 mt-2">💻 開始練習</a>
                     </div>
+                    
                 </div>
+                
             </div>
+            <!-- <a href="course.php" class="btn btn-brown w-100 mt-2">回到課程首頁</a> -->
         <?php endwhile; ?>
     <?php else: ?>
         <p class="text-center text-muted">目前此章節尚無題目。</p>
     <?php endif; ?>
   </div>
+        
 </div>
 
 </body>
