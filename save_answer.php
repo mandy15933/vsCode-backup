@@ -54,21 +54,28 @@ $attempts = 1;
 $firstCorrectTime = null;
 
 if ($existing) {
-    // ✅ 已有紀錄 → 更新累積資料（不動點擊欄位）
+
+    // 次數累積
     $attempts = ($existing['attempts'] ?? 0) + 1;
 
-    // 保留首次通過時間
+    // ❗ 若已有通過紀錄，不可再被覆蓋
+    $isCorrectFinal = $existing['is_correct'] == 1 ? 1 : $isCorrect;
+
+    // ❗ 首次通過時間只記第一次
     if ($existing['is_correct'] == 1 && !empty($existing['first_correct_time'])) {
         $firstCorrectTime = $existing['first_correct_time'];
-    } elseif ($isCorrect == 1 && !$existing['is_correct']) {
+    } elseif ($isCorrectFinal == 1 && $existing['is_correct'] == 0) {
         $firstCorrectTime = $now;
     } else {
         $firstCorrectTime = $existing['first_correct_time'];
     }
 
+    $passStatus = $isCorrectFinal ? '通過' : '未通過';
+
     $stmt = $conn->prepare("
         UPDATE student_answers
-        SET is_correct=?,
+        SET 
+            is_correct=?,
             attempts=?,
             time_spent=?,
             chapter_id=?,
@@ -79,10 +86,10 @@ if ($existing) {
             answered_at=NOW()
         WHERE id=?
     ");
-    $passStatus = $isCorrect ? '通過' : '未通過';
+
     $stmt->bind_param(
         "iiisisssi",
-        $isCorrect,
+        $isCorrectFinal,
         $attempts,
         $timeSpent,
         $chapterId,
@@ -92,40 +99,12 @@ if ($existing) {
         $firstCorrectTime,
         $existing['id']
     );
+
     $stmt->execute();
     $studentAnswerId = $existing['id'];
     $stmt->close();
-
-} else {
-    // ✅ 沒有紀錄 → 新增（點擊欄位設 0，之後交由 log_action.php 累加）
-    $firstCorrectTime = $isCorrect ? $now : null;
-
-    $stmt = $conn->prepare("
-        INSERT INTO student_answers
-        (user_id, question_id, is_correct, attempts, first_correct_time,
-         time_spent, mindmap_clicks, flowchart_clicks, aiHint_clicks,
-         viewed_types, chapter_id, test_group_id, answer_mode, pass_status, answered_at)
-        VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?, ?, NOW())
-    ");
-    $passStatus = $isCorrect ? '通過' : '未通過';
-    $stmt->bind_param(
-        "iiiisississ",
-        $userId,
-        $questionId,
-        $isCorrect,
-        $attempts,
-        $firstCorrectTime,
-        $timeSpent,
-        $viewedTypes,
-        $chapterId,
-        $testGroupId,
-        $answerMode,
-        $passStatus
-    );
-    $stmt->execute();
-    $studentAnswerId = $stmt->insert_id;
-    $stmt->close();
 }
+
 
 // ✅ 紀錄學生當次程式碼歷史
 $stmt = $conn->prepare("

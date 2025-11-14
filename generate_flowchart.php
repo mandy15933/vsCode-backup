@@ -9,12 +9,12 @@ if (trim($code) === '') {
     exit;
 }
 // --- 2️⃣ 拆解程式碼行 ---
-$code_arr = preg_split('/\r\n|\r|\n/', trim($code_lines));
-$max_line = count($code_arr)
+$code_arr = preg_split('/\r\n|\r|\n/', trim($code));
+$max_line = count($code_arr);
 
 $prompt = <<<EOT
 你是一位 Python 教學助教。
-請依照下方 Python 程式碼，**逐行生成對應的流程圖 JSON（flowchart.js 格式）**。
+請依照下方 Python 程式碼，逐行生成對應的流程圖 JSON（flowchart.js 格式）。
 
 規範如下：
 1. 節點類型僅能使用：start、end、io、operation、decision。
@@ -51,9 +51,8 @@ $prompt = <<<EOT
 }
 
 Python 程式碼：
-```python
-{$code}
-請直接輸出 JSON，不要加入解釋、文字或 Markdown。
+```python{$code}
+請直接輸出流程圖JSON，不要加入解釋、文字或 Markdown。
 EOT;
 
 $response = chat_with_openai($prompt);

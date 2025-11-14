@@ -32,7 +32,7 @@ body {
 .hero h1 {
   font-size: 2.8rem;
   font-weight: 700;
-  color: #ff9800;
+  color: #413422ff;
 }
 .hero p {
   color: #555;
@@ -48,7 +48,7 @@ body {
   50% { transform: translateY(-10px); }
 }
 .btn-main {
-  background-color: #ffc107;
+  background-color: #cfb158ff;
   color: #000;
   font-weight: 600;
   border-radius: 30px;
@@ -56,16 +56,17 @@ body {
   font-size: 1.1rem;
 }
 .btn-main:hover {
-  background-color: #e0a800;
+  background-color: #856a18ff;
 }
 .section {
   padding: 60px 20px;
 }
 .feature-icon {
   font-size: 40px;
-  color: #ffb300;
+  color: #ffb30080;
 }
 </style>
+<link rel="stylesheet" href="anime-yellow-theme.css">
 </head>
 <body>
 
@@ -133,16 +134,16 @@ body {
           <button type="submit" class="btn btn-warning w-100 fw-bold">登入</button>
         </form>
       </div>
-      <div class="modal-footer">
+      <!-- <div class="modal-footer">
         <small class="text-muted">還沒有帳號？
           <a href="#" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#registerModal" class="text-dark fw-bold text-decoration-none">立即註冊</a>
         </small>
-      </div>
+      </div> -->
     </div>
   </div>
 </div>
 
-<!-- 註冊 Modal -->
+<!-- 註冊 Modal
 <div class="modal fade" id="registerModal" tabindex="-1" aria-labelledby="registerModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content shadow-lg border-warning border-3">
@@ -173,7 +174,7 @@ body {
       </div>
     </div>
   </div>
-</div>
+</div> -->
 
 
 <!-- 🔸 底部 -->
@@ -198,20 +199,20 @@ document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
   }
 });
 
-document.getElementById('registerForm')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const formData = new FormData(e.target);
-  const res = await fetch('register.php', { method: 'POST', body: formData });
-  const result = await res.json();
+// document.getElementById('registerForm')?.addEventListener('submit', async (e) => {
+//   e.preventDefault();
+//   const formData = new FormData(e.target);
+//   const res = await fetch('register.php', { method: 'POST', body: formData });
+//   const result = await res.json();
 
-  if (result.success) {
-    alert('註冊成功，請登入！');
-    const registerModal = bootstrap.Modal.getInstance(document.getElementById('registerModal'));
-    registerModal.hide();
-    const loginModal = new bootstrap.Modal(document.getElementById('loginModal'));
-    loginModal.show();
-  } else {
-    alert(result.message || '註冊失敗');
-  }
-});
+//   if (result.success) {
+//     alert('註冊成功，請登入！');
+//     const registerModal = bootstrap.Modal.getInstance(document.getElementById('registerModal'));
+//     registerModal.hide();
+//     const loginModal = new bootstrap.Modal(document.getElementById('loginModal'));
+//     loginModal.show();
+//   } else {
+//     alert(result.message || '註冊失敗');
+//   }
+// });
 </script>

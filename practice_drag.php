@@ -472,44 +472,84 @@ console.log("行號對應表:", lineMap);
 window.lineMap = lineMap; // ✅ 讓流程圖能全域取用
 
 // === 畫出程式碼 ===
+// === 畫出程式碼 ===
 const codeList = document.getElementById("codeList");
-let selectedLine = null;
-let sortableInstance = null;
-
-function initSortable() {
-    if (sortableInstance) sortableInstance.destroy();
-
-    sortableInstance = new Sortable(codeList, {
-        animation: 150,
-        handle: ".code-line",   // 讓整行可拖
-        ghostClass: "dragging",
-        touchStartThreshold: 5
-    });
-}
-
-initSortable();
 
 shuffled.forEach(row => {
   const clean = row.text.replace(/^\s+/, "");
   const li = document.createElement("li");
-    li.className = "list-group-item code-line";
-    li.setAttribute("data-indent", "0");
+  li.className = "list-group-item code-line";
+  li.setAttribute("data-indent", "0");
 
-    const pre = document.createElement("pre");
-    const code = document.createElement("code");
-    code.className = "language-python";
-    code.textContent = clean; // ✅ 這樣自動跳脫 HTML
+  const pre = document.createElement("pre");
+  const code = document.createElement("code");
+  code.className = "language-python";
+  code.textContent = clean;
 
-    pre.appendChild(code);
-    li.appendChild(pre);
-    codeList.appendChild(li);
+  pre.appendChild(code);
+  li.appendChild(pre);
+  codeList.appendChild(li);
 });
 
+// 啟動 Highlight.js
 hljs.highlightAll();
 
-// === 拖曳設定 ===
+// === 拖曳設定 + 音效 ===
 let selectedLine = null;
 let sortableInstance = null;
+let lastHoverTime = 0; // 防止 hover 音效太頻繁
+
+function initSortable() {
+  if (sortableInstance) sortableInstance.destroy();
+
+  sortableInstance = new Sortable(codeList, {
+    animation: 150,
+    handle: ".code-line",
+    ghostClass: "dragging",
+    touchStartThreshold: 5,
+
+    // 📌 僅限「選取的行」才能拖曳（手機）
+    onMove: (evt) => {
+      const dragged = evt.dragged;
+
+      // 判斷是不是手機
+      const isMobile = window.innerWidth <= 768;
+
+      if (isMobile) {
+        // 若目前拖曳的不是使用者選取的那一行 → 不允許移動
+        if (!dragged.classList.contains("selected")) {
+          return false;  // ⛔ 阻止拖曳
+        }
+      }
+
+      // 若是桌機或選取的行 → 允許移動
+      return true;
+    },
+
+    onStart: (evt) => {
+      // 手機：開始拖曳時，若沒有選取，就取消
+      const isMobile = window.innerWidth <= 768;
+      if (isMobile) {
+        const dragged = evt.item;
+        if (!dragged.classList.contains("selected")) {
+          evt.preventDefault();
+          return false;
+        }
+      }
+
+      playSound("soundHover", 0.6);
+    },
+
+    onEnd: (evt) => {
+      if (evt.oldIndex !== evt.newIndex) {
+        playSound("soundMove", 0.4);
+      }
+    }
+  });
+}
+initSortable();
+
+
 
 
 

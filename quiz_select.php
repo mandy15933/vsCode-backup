@@ -1,6 +1,13 @@
 <?php
 require 'db.php';
 session_start();
+$userId = $_SESSION['user_id'] ?? 1;
+// ❗ 必須登入才能進入測驗模式
+if (!isset($_SESSION['user_id'])) {
+    // 可選：給提示後導回登入頁
+    header("Location:index.php");
+    exit;
+}
 
 // 讀取題組資料
 $sql = "SELECT * FROM test_groups ORDER BY id ASC";

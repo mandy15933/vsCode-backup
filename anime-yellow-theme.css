@@ -2,7 +2,6 @@
 @font-face {
   font-family: "Chiron GoRound TC";
   src:
-    url("fonts/Chiron_GoRound_TC/ChironGoRoundTC-VariableFont_wght.woff2") format("woff2"),
     url("fonts/Chiron_GoRound_TC/ChironGoRoundTC-VariableFont_wght.ttf") format("truetype");
   font-weight: 100 900;
   font-style: normal;
@@ -13,27 +12,18 @@
 🌞 基礎設定
 ============================= */
 body {
-  font-family: "Chiron GoRound TC", "Noto Sans TC", "Comic Sans MS", "Segoe UI", sans-serif;
-  background: linear-gradient(180deg, #fffde7 0%, #fff8e1 100%);
-  color: #4e342e;
-  line-height: 1.7;
-  font-weight: 500;
-  text-shadow: 0.5px 0.5px #fff8e1;
-  letter-spacing: 0.5px;
+  background: linear-gradient(180deg, #F6F0F0 0%, #F2E2B1 100%);
+  color: #4e342e; /* 可保留文字色，或改為 #6D5C4F */
+  text-shadow: 0.5px 0.5px #F2E2B1;
 }
 
 /* 🌞 導覽列 */
 .navbar {
-  background: linear-gradient(to right, #ffeb3b, #ffd600);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  border-bottom: 3px solid #fff59d;
+  background: linear-gradient(to right, #BDB395, #BDB395);
+  border-bottom: 3px solid #F2E2B1;
 }
-
 .navbar-brand {
-  font-weight: 700;
-  font-size: 1.6rem;
-  color: #4e342e;
-  text-shadow: 1px 1px 0 #fff59d;
+  text-shadow: 1px 1px 0 #F2E2B1;
 }
 
 /* =============================
@@ -202,34 +192,6 @@ body {
   0% { box-shadow: 0 0 0 rgba(161, 136, 127, 0.3); }
   50% { box-shadow: 0 0 10px rgba(161, 136, 127, 0.8); }
   100% { box-shadow: 0 0 0 rgba(161, 136, 127, 0.3); }
-}
-
-/* =============================
-💻 拖曳程式碼區域
-============================= */
-#codeList {
-  background: #fafafa;
-  border-radius: 14px;
-  padding: 10px;
-  border: 2px dashed #ffe082;
-  min-height: 220px;
-}
-.code-line {
-  border: 2px solid transparent;
-  border-radius: 10px;
-  background-color: #fff;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-  margin-bottom: 6px;
-  transition: all 0.2s ease;
-}
-.code-line.selected {
-  border-color: #ffb300;
-  background-color: #fff8e1;
-  transform: scale(1.02);
-}
-.code-line.highlight {
-  border-color: #ff9800;
-  background-color: #fff3e0;
 }
 
 /* =============================

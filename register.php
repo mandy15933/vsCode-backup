@@ -22,12 +22,11 @@ if ($check->get_result()->num_rows > 0) {
 }
 
 // 建立加密密碼
-$hash = password_hash($password, PASSWORD_DEFAULT);
+$passwordHash = $password; // 明碼儲存
 
 // 插入資料
 $stmt = $conn->prepare("INSERT INTO users (StudentID, Username, PasswordHash, ClassName, role) VALUES (?, ?, ?, ?, 'student')");
-$stmt->bind_param("ssss", $studentID, $username, $hash, $class_name);
-
+$stmt->bind_param("ssss", $studentID, $username, $passwordHash, $class_name);
 if ($stmt->execute()) {
     echo json_encode(["success" => true, "message" => "註冊成功"]);
 } else {

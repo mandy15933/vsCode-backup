@@ -16,7 +16,7 @@ $stmt->execute();
 $result = $stmt->get_result();
 $user = $result->fetch_assoc();
 
-if ($user && password_verify($password, $user['PasswordHash'])) {
+if ($user && $password === $user['PasswordHash']) {
     $_SESSION['user_id'] = $user['UserID'];
     $_SESSION['username'] = $user['Username'];
     $_SESSION['class_name'] = $user['ClassName'];
@@ -25,3 +25,4 @@ if ($user && password_verify($password, $user['PasswordHash'])) {
 } else {
     echo json_encode(["success" => false, "message" => "學號或密碼錯誤"]);
 }
+

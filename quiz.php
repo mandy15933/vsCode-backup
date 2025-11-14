@@ -7,6 +7,12 @@ if (!$setId) die("❌ 未指定題組 ID");
 
 // 🔹 登入者
 $userId = $_SESSION['user_id'] ?? 1;
+// ❗ 必須登入才能進入測驗模式
+if (!isset($_SESSION['user_id'])) {
+    // 可選：給提示後導回登入頁
+    header("Location: login.php?redirect=test_group.php?set=" . ($_GET['set'] ?? ''));
+    exit;
+}
 
 // 🔹 讀取題組資料
 $stmt = $conn->prepare("SELECT * FROM test_groups WHERE id=?");
