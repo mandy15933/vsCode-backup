@@ -167,3 +167,123 @@ footer {
   color: #4e4032;
 }
 
+/* =============================
+📱 手機版 UI 全面優化
+(max-width: 768px)
+============================= */
+@media (max-width: 768px) {
+
+  /* ===========
+    Navbar
+  ============*/
+  .navbar {
+    padding: 0.8rem 1rem;
+  }
+
+  .navbar-brand {
+    font-size: 1rem;
+    white-space: nowrap;
+  }
+
+  .navbar-toggler {
+    padding: 0.6rem 0.8rem;
+    font-size: 1.25rem;
+  }
+
+  .navbar-collapse {
+    background: rgba(255, 255, 255, 0.92);
+    border-radius: 16px;
+    padding: 1rem;
+    margin-top: 0.5rem;
+  }
+
+  .navbar-nav .nav-link {
+    padding: 0.75rem 0.75rem;
+    font-size: 1.15rem;
+    border-radius: 10px;
+  }
+
+  #navArea {
+    width: 100%;
+    justify-content: center !important;
+    margin-top: 1rem;
+    text-align: center;
+  }
+
+  /* ===========
+    Cards
+  ============*/
+  .card,
+  .chapter-card {
+    margin-bottom: 1rem;
+    border-width: 2px;
+    border-radius: 18px;
+  }
+
+  .chapter-img {
+    height: 140px;
+  }
+
+  /* ===========
+    Buttons
+  ============*/
+  .btn-warning,
+  .btn-submitting,
+  .btn-secondary {
+    padding: 0.7rem 1rem;
+    font-size: 1rem;
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+
+  /* ===========
+    Tabs
+  ============*/
+  .nav-tabs .nav-link {
+    font-size: 1rem;
+    padding: 0.6rem 0.8rem;
+  }
+
+  /* ===========
+    AI 提示區
+  ============*/
+  #aiHintArea {
+    padding: 0.75rem;
+    font-size: 0.95rem;
+  }
+
+  /* ===========
+    Modal
+  ============*/
+  .modal-content {
+    margin: 0 1rem;
+    border-width: 3px;
+    border-radius: 18px;
+  }
+
+  .form-control {
+    font-size: 1rem;
+    padding: 0.65rem;
+  }
+
+  /* ===========
+    進度條
+  ============*/
+  .progress {
+    height: 1.2rem;
+  }
+
+  .progress-bar {
+    font-size: 0.85rem;
+  }
+
+  /* ===========
+    Footer
+  ============*/
+  footer {
+    text-align: center;
+    padding: 1rem 0.5rem;
+    font-size: 0.95rem;
+  }
+}
+

@@ -11,7 +11,7 @@ $role = $_SESSION['role'] ?? 'student';
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<title>🐍 Python 學習平台首頁</title>
+<title> Python 學習平台首頁</title>
 <!-- Bootstrap CSS -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 

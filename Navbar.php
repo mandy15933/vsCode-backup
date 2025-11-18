@@ -9,6 +9,54 @@ $className  = $_SESSION['class_name'] ?? '';
 $role       = $_SESSION['role'] ?? ' '; // 預設學生
 ?>
 
+<style>
+/* 手機版：品牌名稱不要太長爆版 */
+@media (max-width: 576px) {
+  .navbar-brand {
+    font-size: 1rem;
+    white-space: nowrap;
+  }
+}
+
+/* 手機版：讓 navbar 按鈕更大更好按 */
+@media (max-width: 768px) {
+  .navbar-toggler {
+    padding: 0.6rem 0.8rem;
+    font-size: 1.25rem;
+  }
+}
+
+/* 手機版：展開選單變成淺色背景 + 加大字體 + 增加間距 */
+@media (max-width: 768px) {
+  .navbar-collapse {
+    background: rgba(255, 255, 255, 0.9);
+    padding: 1rem;
+    border-radius: 0.75rem;
+    margin-top: 0.5rem;
+  }
+
+  .navbar-nav .nav-link {
+    padding: 0.75rem 0.5rem;
+    font-size: 1.1rem;
+  }
+}
+
+/* 手機版：登入區塊置中、換行 */
+@media (max-width: 768px) {
+  #navArea {
+    width: 100%;
+    justify-content: center !important;
+    margin-top: 1rem;
+  }
+}
+
+/* 讓 navbar 更柔和（可選） */
+.navbar {
+  transition: background 0.3s ease;
+}
+</style>
+
+
 <nav class="navbar navbar-expand-lg navbar-light shadow-sm mb-4" style="background-color:#ffcc00;">
   <div class="container">
     <a class="navbar-brand fw-bold" href="index.php">🐍 Python 視覺化學習平台</a>

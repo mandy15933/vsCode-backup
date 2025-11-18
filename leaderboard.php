@@ -175,7 +175,7 @@ tr:nth-child(3) td { background: #f8f9fa; }
   </table>
 
   <div class="text-center mt-4">
-    <a href="index.php" class="btn btn-secondary">🏠 返回首頁</a>
+    <a href="courses.php" class="btn btn-secondary">🏠 返回題組練習</a>
   </div>
 </div>
 
