@@ -211,9 +211,7 @@ body {
 </div>
 
 
-<footer class="text-center mt-5 py-3 text-muted small">
-  &copy; <?= date('Y') ?> Python 學習平台 | AI 輔助視覺化學習系統
-</footer>
+
 
 </body>
 </html>

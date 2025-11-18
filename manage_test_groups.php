@@ -2,6 +2,14 @@
 session_start();
 require 'db.php';
 
+if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+    echo "<script>
+        alert('您沒有權限進入此頁面');
+        window.location.href = 'index.php';
+    </script>";
+    exit;
+}
+
 // ✅ 讀取所有題組
 $groups = $conn->query("SELECT * FROM test_groups ORDER BY id DESC");
 

@@ -6,10 +6,6 @@ error_reporting(E_ALL);
 
 require_once __DIR__ . '/openai.php';
 
-// 🧠 建立 log 檔案方便除錯
-$logFile = __DIR__ . '/ai_feedback_log.txt';
-file_put_contents($logFile, date('H:i:s') . " 🚀 AI Feedback Step Start\n", FILE_APPEND);
-
 try {
     $data = json_decode(file_get_contents("php://input"), true);
     $questionTitle = $data['question_title'] ?? '';
@@ -36,7 +32,7 @@ try {
     }
 
     $prompt = <<<EOD
-你是一位友善的 Python 教學助理，根據學生程度提供分層回饋。
+你是一位友善的 Python 教學助理，這是一個拖拉程式碼排序以及縮排的練習模式，根據學生程式的排序縮排提供分層回饋。
 
 題目標題：{$questionTitle}
 題目說明：{$questionDesc}
@@ -55,7 +51,7 @@ try {
 （提示性問題或方向）
 ---
 第二步：
-（修正方向或具體建議）
+（修正方向或具體建議，哪一行要改順序或縮排）
 ---
 EOD;
 
@@ -65,26 +61,23 @@ EOD;
     }
 
     $reply = $response['choices'][0]['message']['content'] ?? '';
-    file_put_contents($logFile, "✅ OpenAI 回覆內容:\n$reply\n\n", FILE_APPEND);
 
     // 正規表示式提取「第一步」「第二步」
     preg_match('/第一步[:：]\s*(.*?)\n-{3,}\n/su', $reply, $m1);
     preg_match('/第二步[:：]\s*(.*)$/su', $reply, $m2);
 
-    // 若仍抓不到，再嘗試簡化匹配
+    // fallback：第二種拆法
     if (empty($m1[1]) && str_contains($reply, '第一步')) {
         $parts = explode('第二步', $reply);
         $m1[1] = trim(strip_tags(str_replace(['---', '第一步：', '第一步:'], '', $parts[0])));
         $m2[1] = isset($parts[1]) ? trim(strip_tags(str_replace(['---', '第二步：', '第二步:'], '', $parts[1]))) : '';
     }
 
-
     $step1 = trim($m1[1] ?? '');
     $step2 = trim($m2[1] ?? '');
 
     if (!$step1 && !$step2) {
-        // fallback：AI 回覆格式錯誤
-        file_put_contents($logFile, "⚠️ AI 回覆無法解析，啟用 fallback。\n", FILE_APPEND);
+        // AI 回覆格式錯誤 fallback
         $step1 = "⚠️ AI 回覆格式無法辨識，以下是原始內容：";
         $step2 = $reply ?: "（無回應）";
     }
@@ -95,7 +88,6 @@ EOD;
     ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 
 } catch (Throwable $e) {
-    file_put_contents($logFile, "💥 錯誤：" . $e->getMessage() . "\n", FILE_APPEND);
     echo json_encode([
         'step1' => '💥 系統錯誤（AI 無法回應）',
         'step2' => '伺服器錯誤：' . $e->getMessage()

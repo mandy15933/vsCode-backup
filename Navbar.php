@@ -26,7 +26,7 @@ $role       = $_SESSION['role'] ?? ' '; // 預設學生
         <?php elseif ($role === 'student'): ?>
           <li class="nav-item"><a class="nav-link" href="index.php">🏠 首頁</a></li>
           <li class="nav-item"><a class="nav-link" href="courses.php">🧩 單元列表</a></li>
-          <li class="nav-item"><a class="nav-link" href="quiz_select.php">💬 測驗區</a></li>
+          <!-- <li class="nav-item"><a class="nav-link" href="quiz_select.php">💬 測驗區</a></li> -->
           <li class="nav-item"><a class="nav-link" href="leaderboard.php">🏆 每日排行榜</a></li>
         <?php else: ?>
           <li class="nav-item"><a class="nav-link" href="index.php">🏠 首頁</a></li>
@@ -34,7 +34,7 @@ $role       = $_SESSION['role'] ?? ' '; // 預設學生
       </ul>
       <div id="navArea" class="d-flex align-items-center">
         <?php if ($isLoggedIn): ?>
-          <span class="me-3">👩‍💻 <?= htmlspecialchars($username) ?>（<?= htmlspecialchars($className) ?>）</span>
+          <span class="me-3">👩‍💻 <?= htmlspecialchars($username) ?></span>
           <a href="logout.php" class="btn btn-outline-dark btn-sm" id="logoutBtn">登出</a>
         <?php else: ?>
           <button class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#loginModal">登入</button>

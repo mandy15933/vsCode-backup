@@ -2,6 +2,14 @@
 session_start();
 require 'db.php';
 
+if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+    echo "<script>
+        alert('您沒有權限進入此頁面');
+        window.location.href = 'index.php';
+    </script>";
+    exit;
+}
+
 // 🔍 取得章節清單
 $chapters = $conn->query("SELECT id, title FROM chapters ORDER BY id")->fetch_all(MYSQLI_ASSOC);
 
@@ -11,7 +19,7 @@ $filterDifficulty = $_GET['difficulty'] ?? '';
 
 // 🔹 基本查詢
 $sql = "
-  SELECT q.id, q.title, q.difficulty, q.created_at, c.title AS chapter_title
+  SELECT q.id, q.title, q.difficulty, q.created_at, q.is_hidden, c.title AS chapter_title
   FROM questions q
   LEFT JOIN chapters c ON q.chapter = c.id
   WHERE 1
@@ -127,6 +135,7 @@ body {
             <th style="width:25%">題目標題</th>
             <th style="width:20%">章節</th>
             <th style="width:10%">難度</th>
+            <th style="width:10%">是否隱藏</th>
             <th style="width:20%">建立時間</th>
             <th style="width:20%">操作</th>
           </tr>
@@ -148,6 +157,13 @@ body {
                   ?>
                   <span class="badge bg-<?= $color ?>"><?= $row['difficulty'] ?></span>
                 </td>
+                <td>
+                  <?php if ($row['is_hidden']): ?>
+                    <span class="badge bg-secondary">已隱藏</span>
+                  <?php else: ?>
+                    <span class="badge bg-success">顯示中</span>
+                  <?php endif; ?>
+                </td>
                 <td><?= date('Y-m-d H:i', strtotime($row['created_at'])) ?></td>
                 <td>
                   <a href="edit_question.php?id=<?= $row['id'] ?>" class="btn btn-sm btn-outline-primary btn-action">
@@ -158,7 +174,12 @@ body {
                   </a>
                   <button class="btn btn-sm btn-outline-danger btn-action" onclick="deleteQuestion(<?= $row['id'] ?>)">
                     <i class="fa-solid fa-trash"></i> 刪除
-                  </button>
+                    </button>
+                  <button class="btn btn-sm btn-outline-warning btn-action"
+                        onclick="toggleHidden(<?= $row['id'] ?>, <?= $row['is_hidden'] ?>)">
+                  <i class="fa-solid fa-eye-slash"></i> <?= $row['is_hidden'] ? '顯示' : '隱藏' ?>
+                </button>
+
                 </td>
               </tr>
             <?php endwhile; ?>
@@ -172,6 +193,42 @@ body {
 </div>
 
 <script>
+function toggleHidden(id, currentStatus) {
+  const actionText = currentStatus ? "恢復顯示" : "隱藏";
+
+  Swal.fire({
+    title: `確定要${actionText}這題嗎？`,
+    icon: "question",
+    showCancelButton: true,
+    confirmButtonText: `是的，${actionText}`,
+    cancelButtonText: "取消"
+  }).then((result) => {
+    if (result.isConfirmed) {
+      fetch("toggle_hidden.php", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: new URLSearchParams({
+          id: id,
+          is_hidden: currentStatus ? 0 : 1
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          Swal.fire("完成！", `題目已${actionText}`, "success").then(() => {
+            location.reload();
+          });
+        } else {
+          Swal.fire("錯誤", data.message || "操作失敗", "error");
+        }
+      })
+      .catch(err => Swal.fire("錯誤", String(err), "error"));
+    }
+  });
+}
+
 function deleteQuestion(id) {
   Swal.fire({
     title: "確定要刪除此題目嗎？",

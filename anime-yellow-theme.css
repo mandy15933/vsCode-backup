@@ -1,25 +1,26 @@
-/* ✨ 主題字體設定：加入日系動漫風格圓潤字體 */
+/* ✨ 主題字體設定 */
 @font-face {
   font-family: "Chiron GoRound TC";
-  src:
-    url("fonts/Chiron_GoRound_TC/ChironGoRoundTC-VariableFont_wght.ttf") format("truetype");
+  src: url("fonts/Chiron_GoRound_TC/ChironGoRoundTC-VariableFont_wght.ttf") format("truetype");
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
 
 /* =============================
-🌞 基礎設定
+🌞 基礎背景、文字
 ============================= */
 body {
   background: linear-gradient(180deg, #F6F0F0 0%, #F2E2B1 100%);
-  color: #4e342e; /* 可保留文字色，或改為 #6D5C4F */
+  color: #5A4C3A;
   text-shadow: 0.5px 0.5px #F2E2B1;
 }
 
-/* 🌞 導覽列 */
+/* =============================
+🌞 導覽列
+============================= */
 .navbar {
-  background: linear-gradient(to right, #BDB395, #BDB395);
+  background: linear-gradient(to right, #BDB395, #D5C7A3);
   border-bottom: 3px solid #F2E2B1;
 }
 .navbar-brand {
@@ -27,343 +28,142 @@ body {
 }
 
 /* =============================
-🧩 卡片設計
+🧩 卡片
 ============================= */
-.chapter-card,
-.card {
+.card,
+.chapter-card {
   border-radius: 22px;
   overflow: hidden;
-  border: 3px solid #fff59d;
-  background: #fff9c4;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);
+  border: 3px solid #D5C7A3;
+  background: #F6F0F0;
+  transition: 0.3s ease;
+  box-shadow: 0 6px 12px rgba(189, 179, 149, 0.35);
+}
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px rgba(189, 179, 149, 0.5);
 }
 
-/* 📷 卡片圖片 */
+/* 卡片圖片 */
 .chapter-img {
   height: 180px;
   object-fit: cover;
-  border-bottom: 4px solid #ffd54f;
+  border-bottom: 4px solid #BDB395;
 }
 
 /* =============================
-💛 立體按鈕
+💛 黃金系統按鈕（主按鈕）
 ============================= */
 .btn-warning {
-  background: linear-gradient(to top, #ffc107, #ffe082);
-  border: 3px solid #ffb300;
-  color: #4e342e;
+  background: linear-gradient(to top, #D5C7A3, #F2E2B1);
+  border: 3px solid #BDB395;
+  color: #4e4032;
   font-weight: bold;
   border-radius: 14px;
-  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.6), 0 6px 0 #ff8f00,
-    0 8px 15px rgba(0, 0, 0, 0.2);
-  transition: all 0.15s ease-in-out;
-  position: relative;
-  padding: 0.6rem 1.2rem;
+  box-shadow: inset 0 2px #fff, 0 6px 0 #BDB395, 0 10px 18px rgba(0,0,0,0.25);
+  transition: 0.2s;
 }
 .btn-warning:hover {
-  background: linear-gradient(to top, #ffca28, #fff59d);
-  color: #3e2723;
+  background: linear-gradient(to top, #F2E2B1, #FFF7DE);
   transform: translateY(-3px);
-  box-shadow: 0 6px 14px rgba(255, 193, 7, 0.5);
-  animation: pulse 0.5s ease;
+  box-shadow: 0 6px 14px rgba(213, 199, 163, 0.6);
 }
 .btn-warning:active {
   top: 2px;
-  background: linear-gradient(to top, #ffb300, #ffd54f);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-}
-
-/* 🌿 淺綠色系立體按鈕 */
-.btn-submitting {
-  background: linear-gradient(to top, #81c784, #c8e6c9);
-  border: 3px solid #66bb6a;
-  color: #1b5e20;
-  font-weight: bold;
-  border-radius: 14px;
-  box-shadow:
-    inset 0 2px 0 rgba(255, 255, 255, 0.6),
-    0 6px 0 #57a05b,
-    0 8px 15px rgba(0, 0, 0, 0.2);
-  transition: all 0.15s ease-in-out;
-  position: relative;
-  padding: 0.6rem 1.2rem;
-}
-
-.btn-submitting:hover {
-  background: linear-gradient(to top, #a5d6a7, #e8f5e9);
-  color: #2e7d32;
-  transform: translateY(-3px);
-  box-shadow:
-    0 6px 14px rgba(102, 187, 106, 0.5),
-    0 8px 20px rgba(0, 0, 0, 0.2);
-  animation: pulseGreen 0.5s ease;
-}
-
-.btn-submitting:active {
-  top: 2px;
-  background: linear-gradient(to top, #66bb6a, #a5d6a7);
-  box-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.4);
-}
-
-@keyframes pulseGreen {
-  0% { box-shadow: 0 0 0 rgba(102, 187, 106, 0.4); }
-  50% { box-shadow: 0 0 10px rgba(102, 187, 106, 0.8); }
-  100% { box-shadow: 0 0 0 rgba(102, 187, 106, 0.4); }
-}
-
-.btn-dent {
-  background: linear-gradient(to top, #4dd0e1, #b2ebf2);
-  border: 3px solid #26c6da;
-  color: #004d40;
-  font-weight: bold;
-  border-radius: 14px;
-  box-shadow:
-    inset 0 2px 0 rgba(255, 255, 255, 0.6),
-    0 6px 0 #00acc1,
-    0 8px 15px rgba(0, 0, 0, 0.2);
-  transition: all 0.15s ease-in-out;
-  position: relative;
-  padding: 0.6rem 1.2rem;
-}
-
-.btn-dent:hover {
-  background: linear-gradient(to top, #80deea, #e0f7fa);
-  color: #00332e;
-  transform: translateY(-3px);
-  box-shadow:
-    0 6px 14px rgba(77, 208, 225, 0.5),
-    0 8px 20px rgba(0, 0, 0, 0.2);
-  animation: pulseDent 0.5s ease;
-}
-
-.btn-dent:active {
-  top: 2px;
-  background: linear-gradient(to top, #26c6da, #80deea);
-  box-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.4);
-}
-/* ✨ 藍綠閃光動畫 */
-@keyframes pulseDent {
-  0% { box-shadow: 0 0 0 rgba(77, 208, 225, 0.4); }
-  50% { box-shadow: 0 0 10px rgba(77, 208, 225, 0.9); }
-  100% { box-shadow: 0 0 0 rgba(77, 208, 225, 0.4); }
-}
-
-/* 🩶 次要按鈕 */
-.btn-secondary {
-  background: linear-gradient(to top, #dcd3ce, #f5f2ef);
-  border: 2.5px solid #a1887f;
-  color: #3e2723;
-  font-weight: 600;
-  border-radius: 12px;
-  box-shadow:
-    inset 0 2px 0 rgba(255, 255, 255, 0.6),
-    0 5px 0 #9c8b83,
-    0 8px 15px rgba(0, 0, 0, 0.15);
-  transition: all 0.15s ease-in-out;
-  position: relative;
-  padding: 0.6rem 1.2rem;
-}
-
-.btn-secondary:hover {
-  background: linear-gradient(to top, #e0d6d2, #faf7f5);
-  color: #2e1c18;
-  transform: translateY(-3px);
-  box-shadow:
-    0 6px 12px rgba(180, 160, 150, 0.4),
-    0 8px 18px rgba(0, 0, 0, 0.15);
-  animation: pulsebrown 0.5s ease;
-}
-
-.btn-secondary:active {
-  top: 2px;
-  background: linear-gradient(to top, #cfc2bb, #e6ded9);
-  box-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.4);
-}
-
-/* ✨ 柔光陰影動畫 */
-@keyframes pulsebrown {
-  0% { box-shadow: 0 0 0 rgba(161, 136, 127, 0.3); }
-  50% { box-shadow: 0 0 10px rgba(161, 136, 127, 0.8); }
-  100% { box-shadow: 0 0 0 rgba(161, 136, 127, 0.3); }
+  background: linear-gradient(to top, #BDB395, #D5C7A3);
 }
 
 /* =============================
-🧭 Tabs 樣式
+🌿 綠色提交按鈕
+============================= */
+.btn-submitting {
+  background: linear-gradient(to top, #9CC49C, #CFE5CF);
+  border: 3px solid #7FAF80;
+  color: #1b5e20;
+  border-radius: 14px;
+  box-shadow: inset 0 2px #fff, 0 6px 0 #7FAF80, 0 10px 18px rgba(0,0,0,0.25);
+  transition: 0.2s;
+}
+.btn-submitting:hover {
+  background: linear-gradient(to top, #BFE0BF, #E8F4E8);
+  transform: translateY(-3px);
+}
+
+/* =============================
+🩶 次要按鈕
+============================= */
+.btn-secondary {
+  background: linear-gradient(to top, #E6E0D8, #F6F0F0);
+  border: 2.5px solid #BDB395;
+  color: #4e4032;
+  border-radius: 12px;
+  box-shadow: inset 0 2px #fff, 0 5px 0 #A79B88, 0 10px 18px rgba(0,0,0,0.15);
+}
+.btn-secondary:hover {
+  background: linear-gradient(to top, #F2E8DB, #FFF9F4);
+  transform: translateY(-3px);
+}
+
+/* =============================
+🧭 Tabs
 ============================= */
 .nav-tabs .nav-link {
   border: none;
   border-bottom: 3px solid transparent;
-  color: #6d4c41;
-  font-weight: 600;
-  transition: all 0.25s;
+  color: #7A6A55;
 }
 .nav-tabs .nav-link.active {
-  color: #3e2723;
-  border-color: #ffb300;
-  background-color: #fffde7;
+  background: #F6F0F0;
+  border-color: #BDB395;
+  color: #4e4032;
 }
 
 /* =============================
 💬 AI 提示區
 ============================= */
 #aiHintArea {
-  background: #fffef3;
-  border: 2px solid #ffecb3;
+  background: #FFFDF9;
+  border: 2px solid #D5C7A3;
   border-radius: 14px;
-  box-shadow: 0 2px 6px rgba(255, 224, 130, 0.5);
   padding: 1rem;
-  transition: all 0.3s ease;
+  box-shadow: 0 2px 6px rgba(189, 179, 149, 0.4);
 }
 
 /* =============================
 📊 進度條
 ============================= */
 .progress {
-  border-radius: 10px;
-  background-color: #fffde7;
-  border: 2px solid #ffecb3;
+  background: #F6F0F0;
+  border: 2px solid #D5C7A3;
 }
 .progress-bar {
-  font-weight: 600;
-  font-size: 0.95rem;
+  background-color: #BDB395 !important;
+  color: #fff;
 }
 
 /* =============================
-🪄 Modal / 表單
+🪄 Modal
 ============================= */
 .modal-content {
   border-radius: 20px;
-  border: 4px solid #ffe082;
-  background-color: #fffde7;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  border: 4px solid #D5C7A3;
+  background-color: #F6F0F0;
 }
 .form-control {
   border-radius: 12px;
-  border: 2px solid #ffe082;
-  transition: 0.3s;
+  border: 2px solid #D5C7A3;
 }
 .form-control:focus {
-  border-color: #ffb300;
-  box-shadow: 0 0 8px rgba(255, 193, 7, 0.5);
+  border-color: #BDB395;
+  box-shadow: 0 0 8px rgba(189, 179, 149, 0.5);
 }
 
 /* =============================
 🦶 Footer
 ============================= */
 footer {
-  background: #fff9c4;
-  padding: 1.2rem 0;
-  color: #6d4c41;
-  font-size: 0.9rem;
-  letter-spacing: 0.5px;
-  border-top: 3px solid #ffe082;
+  background: #F2E2B1;
+  border-top: 3px solid #D5C7A3;
+  color: #4e4032;
 }
-
-/* /* =============================
-🌙 深色模式支援
-============================= */
-/* html[data-theme="dark"] body {
-  background: linear-gradient(180deg, #1e1e1e 0%, #2c2c2c 100%);
-  color: #f5f5f5;
-}
-html[data-theme="dark"] .card {
-  background: #2e2e2e;
-  border-color: #444;
-}
-html[data-theme="dark"] .card-header {
-  background: linear-gradient(to right, #444, #666);
-  color: #ffe082;
-}
-html[data-theme="dark"] #codeList {
-  background: #222;
-  border-color: #555;
-}
-html[data-theme="dark"] .btn-warning {
-  background: linear-gradient(to top, #ffb300, #ffca28);
-  color: #212121;
-}
-
-html[data-theme="dark"] .btn-submitting {
-  background: linear-gradient(to top, #4caf50, #81c784);
-  border: 3px solid #388e3c;
-  color: #e8f5e9;
-  box-shadow:
-    inset 0 2px 0 rgba(255, 255, 255, 0.15),
-    0 5px 0 #2e7d32,
-    0 8px 15px rgba(0, 0, 0, 0.3);
-}
-
-html[data-theme="dark"] .btn-submitting:hover {
-  background: linear-gradient(to top, #66bb6a, #a5d6a7);
-  animation: pulseGreen 0.6s ease;
-}
-
-html[data-theme="dark"] .btn-submitting:active {
-  top: 2px;
-  background: linear-gradient(to top, #388e3c, #66bb6a);
-  box-shadow:
-    0 3px 6px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
-} */
-
-/* 🌙 深色模式版本 */
-/* html[data-theme="dark"] .btn-dent {
-  background: linear-gradient(to top, #00bcd4, #4dd0e1);
-  border: 3px solid #0097a7;
-  color: #e0f7fa;
-  box-shadow:
-    inset 0 2px 0 rgba(255, 255, 255, 0.15),
-    0 5px 0 #007c91,
-    0 8px 15px rgba(0, 0, 0, 0.3);
-}
-
-html[data-theme="dark"] .btn-dent:hover {
-  background: linear-gradient(to top, #26c6da, #80deea);
-  animation: pulseDent 0.6s ease;
-}
-
-html[data-theme="dark"] .btn-dent:active {
-  top: 2px;
-  background: linear-gradient(to top, #00838f, #26c6da);
-  box-shadow:
-    0 3px 6px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
-}
-html[data-theme="dark"] .btn-secondary {
-  background: linear-gradient(to top, #4b4745, #66615e);
-  border: 2px solid #8d8683;
-  color: #eae0db;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    0 4px 0 #5c5653,
-    0 8px 15px rgba(0, 0, 0, 0.3);
-}
-
-html[data-theme="dark"] .btn-secondary:hover {
-  background: linear-gradient(to top, #5d5855, #726d6a);
-  color: #fff8f5;
-  animation: pulsebrown 0.6s ease;
-} */
-/* =============================
-✨ 動畫特效
-============================= */
-@keyframes pulse {
-  0% { box-shadow: 0 0 0 rgba(255, 179, 0, 0.4); }
-  50% { box-shadow: 0 0 10px rgba(255, 179, 0, 0.8); }
-  100% { box-shadow: 0 0 0 rgba(255, 179, 0, 0.4); }
-}
-.card,
-.modal-content,
-.btn,
-.form-control {
-  transition: all 0.3s ease;
-}
-
 

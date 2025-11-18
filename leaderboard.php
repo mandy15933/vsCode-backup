@@ -4,31 +4,49 @@ session_start();
 date_default_timezone_set('Asia/Taipei');
 
 $userId = $_SESSION['user_id'] ?? null;
-if (!$userId) {
-    die("❌ 尚未登入");
-}
+if (!$userId) die("❌ 尚未登入");
+
+/* 取得登入者班級 */
+$stmt = $conn->prepare("SELECT ClassName FROM users WHERE UserID = ?");
+$stmt->bind_param("i", $userId);
+$stmt->execute();
+$res = $stmt->get_result();
+$row = $res->fetch_assoc();
+$userClass = $row['ClassName'] ?? null;
+$stmt->close();
+
+if (!$userClass) die("❌ 找不到使用者班級");
 
 $todayStart = date('Y-m-d 00:00:00');
 $todayEnd   = date('Y-m-d 23:59:59');
 
-// 📊 查詢今日排行榜（只包含學生）
+/* 📊 查詢同班每日排行榜 */
 $sql = "
     SELECT 
         sa.user_id,
         u.Username AS name,
         u.ClassName AS class_name,
+
         COUNT(sa.id) AS attempts,
         SUM(sa.is_correct) AS correct_count,
-        ROUND(SUM(sa.is_correct) / NULLIF(COUNT(sa.id), 0) * 100, 1) AS accuracy
+        MAX(CASE WHEN sa.is_correct = 1 THEN sa.answered_at END) AS finish_time
+
     FROM student_answers sa
     JOIN users u ON sa.user_id = u.UserID
+
     WHERE u.role = 'student'
+      AND u.ClassName = ?
       AND sa.answered_at BETWEEN ? AND ?
+
     GROUP BY sa.user_id
-    ORDER BY correct_count DESC, accuracy DESC, attempts DESC
+
+    ORDER BY 
+        correct_count DESC,
+        finish_time ASC,
+        attempts ASC
 ";
 $stmt = $conn->prepare($sql);
-$stmt->bind_param("ss", $todayStart, $todayEnd);
+$stmt->bind_param("sss", $userClass, $todayStart, $todayEnd);
 $stmt->execute();
 $result = $stmt->get_result();
 
@@ -38,13 +56,11 @@ while ($row = $result->fetch_assoc()) {
 }
 $stmt->close();
 
-// 找出登入者名次
+/* 找出登入者名次 */
 $userRank = null;
-$userData = null;
 foreach ($leaderboard as $i => $row) {
     if ($row['user_id'] == $userId) {
         $userRank = $i + 1;
-        $userData = $row;
         break;
     }
 }
@@ -53,103 +69,106 @@ foreach ($leaderboard as $i => $row) {
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<title>🏆 每日練習排行榜</title>
+<title>🏆 每日練習排行榜（班級）</title>
+
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<link rel="stylesheet" href="anime-yellow-theme.css">
+
 <style>
 body {
   background: #fff8e1;
   font-family: 'Chiron GoRound TC', sans-serif;
-  overflow-x: hidden;
 }
 .table thead th {
-  background: #ffc107;
+  background: #ffecb4ff;
   color: #000;
 }
-tr:nth-child(1) td { background: #fff3cd; font-weight: bold; } /* 🥇 */
-tr:nth-child(2) td { background: #e9ecef; } /* 🥈 */
-tr:nth-child(3) td { background: #f8f9fa; } /* 🥉 */
+tr:nth-child(1) td { background: #fff3cd; font-weight: bold; }
+tr:nth-child(2) td { background: #e9ecef; }
+tr:nth-child(3) td { background: #f8f9fa; }
 
-/* === 背景遮罩與動畫 === */
+/* 動畫區 */
+/* 動畫區 */
 #overlay {
   display: none;
   position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
+  inset: 0;
   background: rgba(0,0,0,0.6);
   backdrop-filter: blur(2px);
   z-index: 9998;
+  pointer-events: auto;
 }
+
+#overlay.hidden {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+
 #rankAnimation {
   display: none;
   position: fixed;
   inset: 0;
   z-index: 9999;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
   justify-content: center;
-  text-align: center;
+  align-items: center;
+  flex-direction: column;
   opacity: 0;
-  transition: opacity 0.8s ease-in-out;
+  transition: opacity 0.8s ease;
+  pointer-events: none;
 }
-#rankAnimation.show { opacity: 1; }
+
+#rankAnimation.show {
+  display: flex;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#rankAnimation.hidden {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
 
 #rankText {
   font-size: 3rem;
   font-weight: 900;
-  letter-spacing: 3px;
-  animation: pop 1.2s ease-out 1;
 }
-@keyframes pop {
-  0% { transform: scale(0.5); opacity: 0; }
-  60% { transform: scale(1.1); opacity: 1; }
-  100% { transform: scale(1); }
-}
-@keyframes glow {
-  0%,100% { text-shadow: 0 0 20px var(--glow1), 0 0 40px var(--glow2); }
-  50% { text-shadow: 0 0 30px var(--glow2), 0 0 60px var(--glow1); }
-}
+
 #confetti {
   position: fixed;
-  width: 100%; height: 100%;
-  top: 0; left: 0;
+  inset: 0;
   z-index: 9000;
   pointer-events: none;
 }
+
 </style>
 </head>
-<body>
 
+<body>
 <?php include 'Navbar.php'; ?>
 
 <div class="container mt-5">
-  <h3 class="fw-bold mb-4 text-center">🏆 今日練習排行榜</h3>
+  <h3 class="fw-bold mb-4 text-center">🏆 今日班級練習排行榜</h3>
 
   <table class="table table-bordered table-striped text-center align-middle">
     <thead>
       <tr>
         <th>名次</th>
         <th>學生姓名</th>
-        <th>班級</th>
         <th>答對題數</th>
-        <th>作答次數</th>
-        <th>正確率</th>
+        <th>完成時間</th>
       </tr>
     </thead>
     <tbody>
-      <?php
-      $rank = 1;
-      foreach ($leaderboard as $row):
-          $medal = ($rank == 1 ? "🥇" : ($rank == 2 ? "🥈" : ($rank == 3 ? "🥉" : "")));
-      ?>
-      <tr<?= ($row['user_id'] == $userId) ? " style='background:#ffe082;font-weight:bold;'" : "" ?>>
-        <td><?= $medal ?: $rank ?></td>
+      <?php $rank = 1; foreach ($leaderboard as $row): ?>
+      <tr <?= ($row['user_id'] == $userId) ? "style='background:#ffe082;font-weight:bold;'" : "" ?>>
+        <td><?= $rank ?></td>
         <td><?= htmlspecialchars($row['name']) ?></td>
-        <td><?= htmlspecialchars($row['class_name'] ?? '-') ?></td>
         <td><?= (int)$row['correct_count'] ?></td>
-        <td><?= (int)$row['attempts'] ?></td>
-        <td><?= is_null($row['accuracy']) ? '0' : $row['accuracy'] ?>%</td>
+        <td><?= $row['finish_time'] ?: "-" ?></td>
       </tr>
       <?php $rank++; endforeach; ?>
     </tbody>
@@ -160,94 +179,127 @@ tr:nth-child(3) td { background: #f8f9fa; } /* 🥉 */
   </div>
 </div>
 
-<!-- 🎉 動畫元素區 -->
+<!-- 動畫區 -->
 <div id="overlay"></div>
+
 <div id="rankAnimation">
   <lottie-player id="trophyAnim"
-    background="transparent"
-    speed="1"
-    style="width:250px;height:250px;margin:0 auto;"
-    autoplay>
+      background="transparent"
+      speed="1.5"
+      style="width:250px;height:250px;"
+      autoplay>
   </lottie-player>
+
   <div id="rankText"></div>
 </div>
-<canvas id="confetti"></canvas>
 
-<?php if ($userRank): ?>
+<canvas id="confetti" style="pointer-events:none"></canvas>
+
 <script>
 document.addEventListener("DOMContentLoaded", () => {
-  const rank = <?= $userRank ?>;
+
+  const userRank = <?= json_encode($userRank) ?>;
+  const leaderboardUsers = <?= json_encode(array_column($leaderboard, 'user_id')) ?>;
+  const userId = <?= $userId ?>;
+  const hasRecord = leaderboardUsers.includes(userId);
+
   const overlay = document.getElementById("overlay");
   const anim = document.getElementById("rankAnimation");
   const text = document.getElementById("rankText");
   const lottie = document.getElementById("trophyAnim");
+  const confettiCanvas = document.getElementById("confetti");
 
-  // 💎 根據名次設定樣式與動畫
-  let colorTheme = {
-    text: "#FFD700", glow1: "#FFF59D", glow2: "#FFEB3B", trophy: "animations/trophy_gold.json"
+  // 無作答
+  if (!hasRecord) {
+    Swal.fire({
+      title: "您今天還沒有作答！",
+      text: "趕快爭取今日的獎盃吧！",
+      icon: "warning",
+      confirmButtonText: "前往練習",
+      confirmButtonColor: "#fbc02d",
+      allowOutsideClick: false
+    }).then(() => {
+      window.location.href = "courses.php";
+    });
+    return;
+  }
+
+  // 無排名
+  if (!userRank) return;
+
+  // 設定動畫主題
+  const themeMap = {
+      1: {text:"#FFD700", trophy:"animations/trophy_gold.json"},
+      2: {text:"#C0C0C0", trophy:"animations/trophy_silver.json"},
+      3: {text:"#CD7F32", trophy:"animations/trophy_bronze.json"}
   };
-  if (rank === 2) colorTheme = { text: "#C0C0C0", glow1: "#E0E0E0", glow2: "#B0BEC5", trophy: "animations/trophy_silver.json" };
-  else if (rank === 3) colorTheme = { text: "#CD7F32", glow1: "#FFCC80", glow2: "#FFB74D", trophy: "animations/trophy_bronze.json" };
-  else if (rank > 3) colorTheme = { text: "#29B6F6", glow1: "#81D4FA", glow2: "#4FC3F7", trophy: "animations/trophy_blue.json" };
 
-  // ✅ 延遲載入確保 lottie ready
+  const theme = themeMap[userRank] ?? {
+      text:"#29B6F6",
+      trophy:"animations/trophy_blue.json"
+  };
+
+  // 切換 Lottie 動畫
   setTimeout(() => {
-    if (lottie && typeof lottie.load === "function") {
-      lottie.load(colorTheme.trophy);
-    }
+      lottie.load(theme.trophy);
   }, 200);
 
-  // 設定文字樣式
-  text.style.color = colorTheme.text;
-  text.style.setProperty("--glow1", colorTheme.glow1);
-  text.style.setProperty("--glow2", colorTheme.glow2);
-  text.style.animation = "glow 2s ease-in-out infinite, pop 1.2s ease-out 1";
-  text.innerText = `🎉 你今天排名第 ${rank} 名！`;
+  text.style.color = theme.text;
+  text.innerText = `🎉 你今天排名第 ${userRank} 名！`;
 
-  // 顯示動畫
-  overlay.style.display = 'block';
-  anim.style.display = 'flex';
+  overlay.style.display = "block";
+  anim.style.display = "flex";
   requestAnimationFrame(() => anim.classList.add("show"));
 
-  // 🎆 彩帶效果
-  const confetti = document.getElementById("confetti");
-  const ctx = confetti.getContext("2d");
-  confetti.width = window.innerWidth;
-  confetti.height = window.innerHeight;
+  // 彩帶
+  const ctx = confettiCanvas.getContext("2d");
+  confettiCanvas.width = window.innerWidth;
+  confettiCanvas.height = window.innerHeight;
+
   const pieces = Array.from({ length: 120 }).map(() => ({
-    x: Math.random() * confetti.width,
-    y: Math.random() * confetti.height - confetti.height,
+    x: Math.random() * confettiCanvas.width,
+    y: Math.random() * -confettiCanvas.height,
     r: Math.random() * 6 + 4,
-    c: `hsl(${Math.random() * 360},100%,60%)`,
-    s: Math.random() + 2
+    c: `hsl(${Math.random()*360},100%,60%)`,
+    s: Math.random() * 2 + 4
   }));
-  (function drawConfetti() {
-    ctx.clearRect(0, 0, confetti.width, confetti.height);
-    pieces.forEach(p => {
+
+  (function draw() {
+    ctx.clearRect(0,0,confettiCanvas.width,confettiCanvas.height);
+    pieces.forEach(p=>{
       ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r, 0, 2 * Math.PI);
+      ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
       ctx.fillStyle = p.c;
       ctx.fill();
       p.y += p.s;
-      if (p.y > confetti.height) p.y = -10;
+      if (p.y > confettiCanvas.height) p.y = -10;
     });
-    requestAnimationFrame(drawConfetti);
+    requestAnimationFrame(draw);
   })();
 
-  // ⏳ 5 秒後淡出
+  // 自動結束動畫
   setTimeout(() => {
-    overlay.style.transition = 'opacity 1.5s';
-    anim.style.transition = 'opacity 1.5s';
-    overlay.style.opacity = '0';
-    anim.style.opacity = '0';
+
+    overlay.style.transition = "opacity 1s";
+    anim.style.transition = "opacity 1s";
+
+    overlay.style.opacity = 0;
+    anim.style.opacity = 0;
+
+    // 安全 remove
     setTimeout(() => {
-      overlay.style.display = 'none';
-      anim.style.display = 'none';
-      confetti.remove();
-    }, 1500);
-  }, 5000);
+      overlay?.remove();
+      anim?.remove();
+      confettiCanvas?.remove();
+    }, 1000);
+
+  }, 2500);
+
 });
+
+
 </script>
-<?php endif; ?>
+
+
 </body>
 </html>

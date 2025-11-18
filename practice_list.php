@@ -32,14 +32,14 @@ if ($isLoggedIn) {
         SELECT 
         (SELECT COUNT(*) 
             FROM questions 
-            WHERE chapter = ?)                                AS total,
+            WHERE chapter = ? AND is_hidden = 0) AS total,
         (SELECT COUNT(DISTINCT q.id)
             FROM questions q
             JOIN student_answers sa
             ON sa.question_id = q.id
             AND sa.user_id = ?
             AND sa.is_correct = 1
-            WHERE q.chapter = ?)                              AS done
+            WHERE q.chapter = ? AND q.is_hidden = 0 )                              AS done
     ");
     $stmt->bind_param("iii", $chapterId, $userId, $chapterId);
     $stmt->execute();
@@ -54,7 +54,7 @@ if ($isLoggedIn) {
 if ($isLoggedIn) {
     $stmt = $conn->prepare("
         SELECT 
-            q.id, q.title, q.difficulty, q.description,
+            q.id, q.guid, q.title, q.difficulty, q.description,
             MAX(CASE WHEN sa.is_correct = 1 THEN 1 ELSE 0 END) AS is_correct
         FROM questions q
         LEFT JOIN student_answers sa 
@@ -62,16 +62,16 @@ if ($isLoggedIn) {
         AND sa.user_id = ? 
         AND (sa.test_group_id IS NULL OR sa.answer_mode = 'practice')
 
-        WHERE q.chapter = ?
+        WHERE q.chapter = ? AND q.is_hidden = 0
         GROUP BY q.id, q.title, q.difficulty, q.description
         ORDER BY q.id ASC
     ");
     $stmt->bind_param("ii", $userId, $chapterId);
 } else {
     $stmt = $conn->prepare("
-        SELECT id, title, difficulty, description 
+        SELECT id, guid, title, difficulty, description 
         FROM questions 
-        WHERE chapter = ? 
+        WHERE chapter = ? AND is_hidden = 0
         ORDER BY id ASC
     ");
     $stmt->bind_param("i", $chapterId);
@@ -89,11 +89,18 @@ $stmt->close();
 <title><?= htmlspecialchars($chapter['title']) ?> - 程式練習</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<link rel="stylesheet" href="anime-yellow-theme.css">
+<link href="https://fonts.googleapis.com/css2?family=Chiron+GoRound+TC:wght@200..900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="font.css">
+
 <style>
-body {
-    background-color: #fff8e1;
-    font-family: 'Noto Sans TC', sans-serif;
+body, .btn, .nav, .card, .modal, h1, h2, h3, h4, h5, h6 {
+    font-family: 'Chiron GoRound TC', 'Noto Sans TC', sans-serif !important;
 }
+
+
 .question-card {
     border-radius: 16px;
     box-shadow: 0 4px 10px rgba(0,0,0,0.1);
@@ -143,6 +150,9 @@ body {
 </div>
 
 <!-- 🔹 題目列表 -->
+<div class="container mb-2 text-center">
+    <a href="courses.php" class="btn btn-secondary px-4">⬅ 回章節列表</a>
+</div>
 <div class="container mb-5">
   <div class="row g-4">
     <?php if ($questions->num_rows > 0): ?>
@@ -170,14 +180,13 @@ body {
                             <?php endif; ?>
                         <?php endif; ?>
 
-                        <a href="practice_drag.php?question_id=<?= $q['id'] ?>" 
+                        <a href="practice_drag.php?guid=<?= $q['guid'] ?>" 
                            class="btn btn-warning w-100 mt-2">💻 開始練習</a>
                     </div>
                     
                 </div>
                 
             </div>
-            <!-- <a href="course.php" class="btn btn-brown w-100 mt-2">回到課程首頁</a> -->
         <?php endwhile; ?>
     <?php else: ?>
         <p class="text-center text-muted">目前此章節尚無題目。</p>

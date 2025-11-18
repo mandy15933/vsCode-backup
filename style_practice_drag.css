@@ -208,7 +208,6 @@ html[data-theme="dark"] .btn-submit {
 .card-header,
 .card-body,
 #codeList,
-#aiHintArea,
 #flowchartArea,
 #mindmapArea {
   border-color: #ffe082 !important;
@@ -395,67 +394,16 @@ jmnode {
     font-size: 14px !important;
 }
 
-/* === 💬 AI 提示字體調整 === */
-#aiHintArea {
-    font-size: 17px !important;
-    line-height: 1.75 !important;
-    white-space: pre-wrap !important;      /* 換行正常 */
-    word-break: break-word !important;     /* 長字不會爆版 */
-}
 
-/* AI提示的 <pre> 區塊也要支援換行 */
-#aiHintArea pre {
-    font-size: 17px !important;
-    white-space: pre-wrap !important;
-    word-break: break-word !important;
-    background: #fffef7 !important;
-    border: 2px solid #ffe082 !important;
-    border-radius: 10px !important;
-    padding: 10px 14px !important;
-}
 
-/* AI提示的小標題（例如：第一步、第二步） */
-#aiHintArea h6 {
-    font-size: 18px !important;
-    font-weight: 700 !important;
-    margin-top: 10px;
-}
 
-/* === 💬 AI 提示區：壓縮空白 === */
-#aiHintArea {
-    /* 原本 class 有 p-3，這裡把內距縮小一點 */
-    padding: 8px 14px !important;
-    min-height: 60px !important;  /* 比原本 200px 短一點，也可改成 0 */
-}
-
-/* 標題「第一步」「第二步」：取消大間距 */
-#aiHintArea h6 {
-    font-size: 17px !important;
-    font-weight: 700 !important;
-    margin: 4px 0 6px !important;   /* 原本 margin 太大，縮小 */
-}
-
-/* 黃色說明框：去掉多餘的上下空白 */
-#aiHintArea pre {
-    margin: 0 !important;          /* 貼緊 h6，不留大空格 */
-    font-size: 17px !important;
-    white-space: pre-wrap !important;
-    word-break: break-word !important;
-    background: #fffef7 !important;
-    border: 2px solid #ffe082 !important;
-    border-radius: 10px !important;
-    padding: 8px 12px !important;
-}
 
 /* 第二步整塊區域跟第一步之間留一點點距離就好 */
 #step2Container {
     margin-top: 10px !important;
 }
 
-/* 忽略原本 text-center 的影響，改用 margin 自己置中 */
-#aiHintArea .text-center.mt-2 {
-    text-align: center !important;
-}
+
 
 /* 讓按鈕本身看起來比例正常、確實置中 */
 #showMoreHintBtn {
@@ -468,11 +416,6 @@ jmnode {
     margin: 12px auto 0;   /* 上方留一點距離，左右自動置中 */
 }
 
-/* === AI提示：按鈕左對齊 === */
-#aiHintArea .text-center.mt-2 {
-    text-align: left !important;   /* 不再置中 */
-    padding-left: 4px;             /* 與上方黃色框對齊 */
-}
 
 /* 按鈕視覺調整：比例端正、靠左 */
 #showMoreHintBtn {
@@ -484,3 +427,66 @@ jmnode {
     font-size: 15px;
     margin-top: 10px !important;
 }
+
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  /* 整頁同一個背景 */
+  background: linear-gradient(180deg, #F6F0F0 0%, #F2E2B1 100%);
+  background-repeat: no-repeat;   /* 不要平鋪重複 */
+  background-attachment: fixed;   /* 捲動時背景固定 */
+  background-size: cover;         /* 讓漸層填滿整個畫面 */
+}
+
+
+/* === AI 提示視覺優化 === */
+.aihint-wrapper {
+    background: #fffdf3;
+    border: 2px solid #f5e6a5;
+    border-radius: 12px;
+    padding: 18px 20px;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.08);
+    font-size: 30px;
+    line-height: 1.6;
+    color: #5a4a00;
+}
+
+
+
+.aihint-wrapper {
+    background: #fffdf3;
+    border: 2px solid #f5e6a5;
+    border-radius: 12px;
+    padding: 16px 18px;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.08);
+    font-size: 25px;
+    line-height: 1.6;
+    color: #5a4a00;
+}
+
+.aihint-wrapper h6 {
+    font-size: 18px;
+    font-weight: 700;
+    margin: 4px 0 8px;
+    color: #c68a00;
+}
+
+.aihint-wrapper pre {
+    background: #fffaf0 !important;
+    border: 1px solid #f0d98c !important;
+    border-radius: 8px;
+    padding: 10px 12px !important;
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+    font-size: 20px !important;
+    margin: 0 0 10px 0 !important;
+}
+
+#showMoreHintBtn {
+    display: inline-block;
+    margin-top: 10px;
+}
+
+

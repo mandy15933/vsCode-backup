@@ -5,6 +5,28 @@ require 'db.php';
 
 
 
+// ================================
+// 0. 相容舊連結：question_id -> guid
+// ================================
+if (isset($_GET['question_id']) && !isset($_GET['guid'])) {
+    $qid = (int)$_GET['question_id'];
+
+    $stmt = $conn->prepare("SELECT guid FROM questions WHERE id=?");
+    $stmt->bind_param("i", $qid);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    $guid = $row['guid'] ?? null;
+
+    if ($guid) {
+        header("Location: practice_drag.php?guid={$guid}", true, 301);
+        exit;
+    } else {
+        die("❌ 找不到 GUID (ID: $qid)");
+    }
+}
+
 // ======================================
 // 1. 使用者資訊與模式判斷
 // ======================================
@@ -12,24 +34,24 @@ $userId = $_SESSION['user_id'] ?? 1;
 $isExamMode = (isset($_GET['test_group_id']) && (int)$_GET['test_group_id'] > 0);
 $testGroupId = $isExamMode ? (int)$_GET['test_group_id'] : null;
 
-// 需要題目 ID
-if (!isset($_GET['question_id'])) {
-    die("❌ 請提供題目 ID，例如：practice_drag.php?question_id=1");
+// 必須有 guid
+if (!isset($_GET['guid'])) {
+    die("❌ 請提供題目 GUID，例如：practice_drag.php?guid=xxxx");
 }
-$questionId = (int)$_GET['question_id'];
+$guid = $_GET['guid'];
 
-// ======================================
-// 2. 讀取題目內容
-// ======================================
-$stmt = $conn->prepare("SELECT * FROM questions WHERE id=?");
-$stmt->bind_param("i", $questionId);
+// 讀題目
+$stmt = $conn->prepare("SELECT * FROM questions WHERE guid=?");
+$stmt->bind_param("s", $guid);
 $stmt->execute();
 $question = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
-if (!$question) {
-    die("❌ 找不到這個題目 (ID: $questionId)");
-}
+if (!$question) die("❌ 找不到這題 (GUID: $guid)");
+
+$questionId = (int)$question["id"];
+
+// ======================================
 
 $chapterId     = (int)$question['chapter'];
 $testCases     = json_decode($question['test_cases'], true) ?? [];
@@ -41,8 +63,8 @@ $flowchartJson = $question['flowchart_json'] ?? null;
 // 3. 找上一題
 // ======================================
 $stmt = $conn->prepare("
-    SELECT id FROM questions 
-    WHERE chapter=? AND id<? 
+    SELECT id, guid FROM questions 
+    WHERE chapter=? AND id<? AND is_hidden = 0
     ORDER BY id DESC LIMIT 1
 ");
 $stmt->bind_param("ii", $chapterId, $questionId);
@@ -50,14 +72,15 @@ $stmt->execute();
 $row = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
-$prevId = $row['id'] ?? null;
+$prevId   = $row['id']   ?? null;
+$prevGuid = $row['guid'] ?? null;
 
 // ======================================
 // 4. 找下一題
 // ======================================
 $stmt = $conn->prepare("
-    SELECT id FROM questions 
-    WHERE chapter=? AND id>? 
+    SELECT id, guid FROM questions 
+    WHERE chapter=? AND id>? AND is_hidden = 0
     ORDER BY id ASC LIMIT 1
 ");
 $stmt->bind_param("ii", $chapterId, $questionId);
@@ -65,7 +88,8 @@ $stmt->execute();
 $row = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
-$nextId = $row['id'] ?? null;
+$nextId   = $row['id']   ?? null;
+$nextGuid = $row['guid'] ?? null;
 
 // ======================================
 // 5. 找下一章節的第一題
@@ -73,8 +97,8 @@ $nextId = $row['id'] ?? null;
 $nextChap = $chapterId + 1;
 
 $stmt = $conn->prepare("
-    SELECT id FROM questions 
-    WHERE chapter=? 
+    SELECT id, guid FROM questions 
+    WHERE chapter=? AND is_hidden = 0
     ORDER BY id ASC LIMIT 1
 ");
 $stmt->bind_param("i", $nextChap);
@@ -82,14 +106,16 @@ $stmt->execute();
 $row = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
-$nextChapterFirstQId = $row['id'] ?? null;
+$nextChapterFirstQId   = $row['id']   ?? null;   // 如果後面 SQL 用得到 id 可以留著
+$nextChapterFirstGuid  = $row['guid'] ?? null;   // 網址用這個
+
 
 // ======================================
 // 6. 章節題目進度（僅練習模式）
 // ======================================
 $stmt = $conn->prepare("
     SELECT 
-        (SELECT COUNT(*) FROM questions WHERE chapter=?) AS total,
+        (SELECT COUNT(*) FROM questions WHERE chapter=? AND is_hidden = 0) AS total,
         (SELECT COUNT(DISTINCT q.id)
            FROM questions q
            JOIN student_answers sa
@@ -169,7 +195,7 @@ $isPassed = ($isPassedRow && $isPassedRow['is_correct'] == 1);
 $stmt = $conn->prepare("
     SELECT COUNT(*) AS remaining
     FROM questions q
-    WHERE q.chapter = ?
+    WHERE q.chapter = ? AND q.is_hidden = 0
       AND q.id NOT IN (
           SELECT sa.question_id
           FROM student_answers sa
@@ -182,6 +208,7 @@ $remainRow = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 $remaining = (int)($remainRow['remaining'] ?? 0);
+
 
 
 ?>
@@ -328,10 +355,10 @@ $remaining = (int)($remainRow['remaining'] ?? 0);
                 <h5 class="mb-0">💻 拖曳程式碼區域</h5>
             </div>
             <div class="card-body">
-                    <p class="text-muted small">
+                    <!-- <p class="text-muted small">
                         你的章節平均嘗試次數：<?= round($avgAttempts,2) ?>  
                         → 本次打亂<strong><?= $linesToShuffle ?></strong> 行
-                    </p>
+                    </p> -->
                     <ul id="codeList" class="list-group mb-3"></ul>
                     <div class="d-flex flex-wrap gap-2">
                         <button id="submitOrder" class="btn  btn-submitting">✅ 提交答案</button>
@@ -348,11 +375,11 @@ $remaining = (int)($remainRow['remaining'] ?? 0);
                             <a href="quiz.php?set=<?= $testGroupId ?>" class="btn btn-secondary">📘 返回題組</a>
                         <?php else: ?>  <!-- 🚫 測驗模式不顯示上下題 -->
                                 <?php if ($prevId): ?>
-                                    <a href="practice_drag.php?question_id=<?= $prevId ?>" class="btn-cute btn-nav">⬅上一題</a>
+                                    <a href="practice_drag.php?guid=<?= $prevGuid ?>" class="btn-cute btn-nav">⬅上一題</a>
                                 <?php endif; ?>
 
                                 <?php if ($nextId): ?>
-                                    <a href="practice_drag.php?question_id=<?= $nextId ?>" class="btn-cute btn-nav">下一題➡</a>
+                                    <a href="practice_drag.php?guid=<?= $nextGuid ?>" class="btn-cute btn-nav">下一題➡</a>
                                 <?php endif; ?>
                         <?php endif; ?>
                     </div>
@@ -468,7 +495,7 @@ const shuffled = toShuffle.concat(remain);
 // 行號映射：原始行 → 打亂後位置
 const lineMap = {};
 shuffled.forEach((row, idx) => { lineMap[row.orig] = idx + 1; });
-console.log("行號對應表:", lineMap);
+// console.log("行號對應表:", lineMap);
 window.lineMap = lineMap; // ✅ 讓流程圖能全域取用
 
 // === 畫出程式碼 ===
@@ -646,226 +673,175 @@ function playSound(id, volume = 1) {
 
 
 // 初始化心智圖
-function renderMindmap(data){
+function renderMindmap(data) {
     const container = document.getElementById("mindmapArea");
     container.innerHTML = "";
 
-    if(!data){
-        container.innerHTML = "⚠️ 沒有心智圖資料";
+    if (!data) {
+        container.innerHTML = "<p class='text-muted'>⚠️ 沒有心智圖資料</p>";
         return;
     }
 
-    const options = { 
-        container:'mindmapArea', 
-        editable:false, 
-        theme:'primary' 
-    };
-    const jm = new jsMind(options);
+    // 設定固定高度讓 jsMind 正常渲染
+    container.style.height = "450px";
+
+    const jm = new jsMind({
+        container: "mindmapArea",
+        theme: "primary",
+        editable: false
+    });
+
     jm.show(data);
 
-    // 🔹 讓節點支援換行
+    // 自動換行
     container.querySelectorAll("jmnode").forEach(node => {
         node.style.whiteSpace = "normal";
         node.style.wordBreak = "break-word";
-        node.style.maxWidth = "220px";
+        node.style.maxWidth = "240px";
         node.style.lineHeight = "1.4";
         node.style.padding = "4px 8px";
-    });
-    const mindmapTab = document.getElementById("mindmap-tab");
-    mindmapTab.addEventListener("shown.bs.tab", () => {
-        setTimeout(() => jm.resize(), 300);
+        node.style.fontSize = "15px";
     });
 
-    // 🔹 根據容器大小自動縮放
-    setTimeout(() => {
-        const svg = container.querySelector("svg");
-        if (svg) {
-            const bbox = svg.getBBox();
-            const newHeight = bbox.height + 80; // 給一點 padding
-            container.style.height = newHeight + "px";
-
-            // 同時讓外層 card-body 自適應
-            const cardBody = container.closest(".card-body");
-            if (cardBody) {
-                cardBody.style.height = "auto";
-            }
-        }
-    }, 300);
+    // 讓圖在 tab fully visible 時調整
+    setTimeout(() => jm.resize(), 200);
 }
 
 
 
 
 
-// 流程圖互動 + 程式碼高亮  ===
+
+// 流程圖互動 + 程式碼高亮 + 拖曳移動(Pan) ===
 function renderFlowchartWithInteraction(rawData) {
-  
-  const area = document.getElementById("flowchartArea");
-  area.innerHTML = "";
-  const data = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
-  if (!data?.nodes?.length) return (area.innerHTML = "⚠️ 沒有流程圖資料");
+    const area = document.getElementById("flowchartArea");
+    area.innerHTML = "";
 
-  // === 生成 flowchart 定義 ===
-  let def = "";
-  data.nodes.forEach(n => {
-    const t = (n.type || "").toLowerCase();
-    def += `${n.id}=>${t === "start" ? "start" :
-      t === "end" ? "end" :
-      t === "io" ? "inputoutput" :
-      t === "decision" ? "condition" : "operation"}: ${n.text}\n`;
-  });
-  data.edges.forEach(e => {
-    const lbl = (e.label || "").toLowerCase();
-    def += `${e.from}${lbl === "yes" || lbl === "是" ? "(yes)" :
-      lbl === "no" || lbl === "否" ? "(no)" : ""}->${e.to}\n`;
-  });
-
-  try {
-    const chart = flowchart.parse(def);
-    chart.drawSVG("flowchartArea", {
-      "line-width": 2, "font-size": 14,
-      "arrow-end": "block", "line-color": "#444",
-      "element-color": "#2196F3", "fill": "#fff",
-      "symbols": {
-        "start": { "fill": "#5cb85c", "font-color": "#fff" },
-        "end": { "fill": "#d9534f", "font-color": "#fff" },
-        "condition": { "fill": "#FFDE63" },
-        "inputoutput": { "fill": "#BFD7FF" },
-        "operation": { "fill": "#E3F2FD" }
-      }
-    });
-  } catch (err) {
-    return (area.innerHTML = `<div class='text-danger p-3'>繪製錯誤：${err.message}</div>`);
-  }
-
-  // === 綁定互動 ===
-    setTimeout(() => {
-    const svg = area.querySelector("svg");
-    if (!svg) {
-        svg.setAttribute("width", "100%");
-        svg.style.maxWidth = "100%";}
-    const rects = svg.querySelectorAll("rect, path, polygon");
-    rects.forEach(shape => {
-        const id = shape.getAttribute("id");
-        const textEl = svg.querySelector(`[id='${id}t']`);
-        const label = textEl ? textEl.textContent.trim() : "";
-        if (!label || label === "是" || label === "否") return;
-
-        // 對應 flowchartData 中的節點
-        const node = data.nodes.find(n => label.includes(n.text.slice(0, 4)));
-        if (!node || !node.line) return;
-
-        // hover 效果
-        [shape, textEl].forEach(el => {
-        if (!el) return;
-        el.style.cursor = "pointer";
-        el.addEventListener("mouseenter", () => {
-            if (!node.line) return; // 沒有對應行 → 不做 highlight
-            shape.style.stroke = "#FFC107";
-            shape.style.strokeWidth = "3px";
-            shape.style.filter = "drop-shadow(0 0 6px rgba(255,193,7,0.8))";
-
-            // 🟡 滑過時暫時高亮對應行
-            // ✅ 根據 lineMap 對應「原始行 → 打亂後行」
-            // 若 node.line 不存在（例如開始/結束），則僅顯示節點高亮，不比對程式碼
-            const map = window.lineMap || {};
-            if (!node.line) {
-                // 只亮節點，不找 code
-                shape.style.stroke = "#FFD54F";
-                shape.style.strokeWidth = "4px";
-                shape.style.filter = "drop-shadow(0 0 10px rgba(255,215,0,0.9))";
-                shape.style.transition = "all 0.25s ease";
-                return; // 🚫 不執行下面程式碼
-            }
-
-            const correctLine = parseInt(node.line);
-            const targetLine = map[correctLine];
-
-            if (targetLine) {
-            const li = document.querySelector(`#codeList li:nth-child(${targetLine})`);
-            if (li) li.classList.add("highlight-temp");
-            }
-        });
-        el.addEventListener("mouseleave", () => {
-            shape.style.stroke = "";
-            shape.style.strokeWidth = "";
-            shape.style.filter = "";
-            document.querySelectorAll(".highlight-temp").forEach(li => li.classList.remove("highlight-temp"));
-        });
-        });
-
-        // 點擊節點事件
-        [shape, textEl].forEach(el => {
-        if (!el) return;
-        el.addEventListener("click", () => {
-            playSound("soundClick", 0.6);
-
-            // 🧹 清除舊高亮（流程圖 + 程式碼）
-            svg.querySelectorAll("rect, path, polygon").forEach(s => {
-            s.style.stroke = "";
-            s.style.strokeWidth = "";
-            s.style.filter = "";
-            });
-            document.querySelectorAll(".code-line").forEach(li => li.classList.remove("highlight"));
-
-            // 🌟 高亮目前節點
-            shape.style.stroke = "#FFD54F";
-            shape.style.strokeWidth = "4px";
-            shape.style.filter = "drop-shadow(0 0 10px rgba(255,215,0,0.9))";
-            shape.style.transition = "all 0.25s ease";
-
-            // ✅ 根據 lineMap 對應「原始行 → 打亂後行」
-            const map = window.lineMap || {};
-            const correctLine = parseInt(node.line);
-            const targetLine = map[correctLine];
-
-            console.log(`🔗 節點對應：原始行 ${correctLine} → 顯示行 ${targetLine}`, map);
-
-            if (targetLine) {
-            const li = document.querySelector(`#codeList li:nth-child(${targetLine})`);
-            if (li) {
-                li.classList.add("highlight");
-                li.scrollIntoView({ behavior: "smooth", block: "center" });
-                playSound("soundSelect", 0.7);
-            }
-            } else {
-            Swal.fire({
-                icon: "warning",
-                title: "對應不到程式碼",
-                text: `此節點（原始行 ${correctLine}）在目前打亂後找不到對應的程式碼。`,
-                timer: 1600,
-                showConfirmButton: false
-            });
-            console.warn(`⚠️ 找不到 lineMap 對應行：${correctLine}`, map);
-            }
-        });
-        });
-    });
-
-    // ✅ 點程式碼 → 清除流程圖亮光
-    const codeListEl = document.getElementById("codeList");
-    if (!codeListEl._flowBound) {
-        codeListEl.addEventListener("click", e => {
-        const clicked = e.target.closest(".code-line");
-        if (!clicked) return;
-
-        // 清除流程圖的高亮
-        svg.querySelectorAll("rect, path, polygon").forEach(s => {
-            s.style.stroke = "";
-            s.style.strokeWidth = "";
-            s.style.filter = "";
-        });
-
-        // 僅保留當前選取程式碼的高亮
-        document.querySelectorAll(".code-line.highlight").forEach(li => {
-            if (li !== clicked) li.classList.remove("highlight");
-        });
-        });
-        codeListEl._flowBound = true;
+    const data = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
+    if (!data?.nodes?.length) {
+        area.innerHTML = "<p class='text-muted'>⚠️ 沒有流程圖資料</p>";
+        return;
     }
-    }, 400);
+
+    // 先顯示為可見尺寸（防止 width=0）
+    const wrapper = document.getElementById("flowchartWrapper");
+    wrapper.style.minHeight = "420px";
+    wrapper.style.minWidth = "100%";
+
+    // 產生 flowchart.js 定義語法
+    let def = "";
+    data.nodes.forEach(n => {
+        const t = (n.type || "").toLowerCase();
+        const typ =
+            t === "start" ? "start" :
+            t === "end" ? "end" :
+            t === "io" ? "inputoutput" :
+            t === "decision" ? "condition" : "operation";
+
+        def += `${n.id}=>${typ}: ${n.text}\n`;
+    });
+
+    data.edges.forEach(e => {
+        const lbl = (e.label || "").toLowerCase();
+        def += `${e.from}${lbl.includes("yes") || lbl.includes("是") ? "(yes)" :
+                   lbl.includes("no") || lbl.includes("否") ? "(no)" : ""}->${e.to}\n`;
+    });
+
+    const chart = flowchart.parse(def);
+
+    area.innerHTML = "";
+    chart.drawSVG("flowchartArea", {
+        "line-width": 2,
+        "font-size": 14,
+        "line-color": "#444",
+        "element-color": "#2196F3",
+        "fill": "#fff",
+        "arrow-end": "block",
+        "symbols": {
+            "start": { "fill": "#5cb85c", "font-color": "#fff" },
+            "end": { "fill": "#d9534f", "font-color": "#fff" },
+            "condition": { "fill": "#FFDE63" },
+            "inputoutput": { "fill": "#BFD7FF" },
+            "operation": { "fill": "#E3F2FD" }
+        }
+    });
+
+    // ====== 🎚️ 縮放控制 ======
+    let scale = 1;
+    const svg = area.querySelector("svg");
+    svg.style.transformOrigin = "0 0";
+
+    document.getElementById("zoomInBtn").onclick = () => {
+        scale += 0.1;
+        svg.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+    };
+    document.getElementById("zoomOutBtn").onclick = () => {
+        scale = Math.max(0.2, scale - 0.1);
+        svg.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+    };
+    document.getElementById("zoomResetBtn").onclick = () => {
+        scale = 1;
+        offsetX = 0;
+        offsetY = 0;
+        svg.style.transform = `translate(0px, 0px) scale(1)`;
+    };
+
+    // ====== 🖱️ 拖曳移動 Pan 功能 ======
+    let isPanning = false;
+    let startX = 0, startY = 0;
+    let offsetX = 0, offsetY = 0;
+
+    area.onmousedown = (e) => {
+        // 不干擾節點點擊
+        if (e.target.tagName === "text" || e.target.tagName === "path" || e.target.tagName === "rect") {
+            // 但仍可拖曳整張流程圖
+        }
+        isPanning = true;
+        startX = e.clientX - offsetX;
+        startY = e.clientY - offsetY;
+    };
+
+    area.onmousemove = (e) => {
+        if (!isPanning) return;
+        offsetX = e.clientX - startX;
+        offsetY = e.clientY - startY;
+        svg.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+    };
+
+    document.onmouseup = () => {
+        isPanning = false;
+    };
+
+    // 手機支援：單指拖曳
+    area.ontouchstart = (e) => {
+        isPanning = true;
+        const t = e.touches[0];
+        startX = t.clientX - offsetX;
+        startY = t.clientY - offsetY;
+    };
+
+    area.ontouchmove = (e) => {
+        if (!isPanning) return;
+        const t = e.touches[0];
+        offsetX = t.clientX - startX;
+        offsetY = t.clientY - startY;
+        svg.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+    };
+
+    area.ontouchend = () => {
+        isPanning = false;
+    };
 }
 
+
+
+document.getElementById("mindmap-tab").addEventListener("shown.bs.tab", () => {
+    renderMindmap(mindmapData);
+});
+
+document.getElementById("flowchart-tab").addEventListener("shown.bs.tab", () => {
+    renderFlowchartWithInteraction(flowchartData);
+});
 
 
 
@@ -950,7 +926,6 @@ if (flowchartTab && !window._clickBound.flowchart) {
 
 
 // === 🤖 AI 提示按鈕 ===
-// === 🤖 AI 提示按鈕 ===
 const aiHintBtn = document.getElementById("aiHintBtn");
 if (<?= $isExamMode ? 'true' : 'false' ?>) {
     // 測驗模式：完全停用所有 AI 功能
@@ -959,111 +934,115 @@ if (<?= $isExamMode ? 'true' : 'false' ?>) {
 const aiHintArea = document.getElementById("aiHintArea");
 
 if (aiHintBtn && !window._clickBound.aihint) {
-  window._clickBound.aihint = true;
+    window._clickBound.aihint = true;
 
-  aiHintBtn.addEventListener("click", async () => {
-    recordAction("aihint");
-    playSound("soundClick", 0.6);
+    aiHintBtn.addEventListener("click", async () => {
+        recordAction("aihint");
+        playSound("soundClick", 0.6);
 
-    // 🔹 一按下就自動切換到 AI提示 分頁
-    const aiTab = new bootstrap.Tab(document.getElementById("aihint-tab"));
-    aiTab.show();
+        // 🔹 一按下自動切換到 AI 提示分頁
+        const aiTab = new bootstrap.Tab(document.getElementById("aihint-tab"));
+        aiTab.show();
 
-    // 🔹 顯示載入動畫
-    aiHintArea.innerHTML = `
-      <div class="text-center text-secondary p-4">
-        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
-        <p class="mt-3 fw-bold">AI 助教正在生成提示中...</p>
-      </div>
-    `;
-
-    // 🔹 準備要送出的程式碼
-    const studentCode = Array.from(codeList.children)
-      .map(li => " ".repeat((parseInt(li.getAttribute("data-indent")) || 0) * 4) + li.innerText.trim())
-      .join("\n");
-    const correctCode = codeLines.join("\n");
-
-    try {
-      const res = await fetch("ai_feedback_step.php", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question_title: <?= json_encode($question['title'] ?? '') ?>,
-          question_desc: <?= json_encode($question['description'] ?? '') ?>,
-          student_code: studentCode,
-          correct_code: correctCode,
-          avg_attempts: <?= json_encode($avgAttempts ?? 2.0) ?>
-        })
-      });
-
-      const text = await res.text();
-      const clean = text.trim().replace(/^\uFEFF/, "");
-      const data = clean.startsWith("{") ? JSON.parse(clean) : null;
-
-      if (data) {
-        playSound("soundSuccess", 0.8);
-
-        // 第一步提示（直接顯示）
-        const step1 = data.step1
-          ? `<h6>🪜 第一步：</h6>
-             <pre class="bg-white p-2 border rounded">${data.step1}</pre>`
-          : "";
-
-        // 第二步提示（初始隱藏，需按按鈕展開）
-        let step2 = "";
-        if (data.step2) {
-          step2 = `
-            <div id="step2Container" style="display:none;">
-              <h6>💡 第二步：</h6>
-              <pre class="bg-white p-2 border rounded">${data.step2}</pre>
-            </div>
-            <div class="text-center mt-2">
-              <button id="showMoreHintBtn" class="btn btn-outline-primary btn-sm">
-                👉 顯示更多提示
-              </button>
-            </div>
-          `;
-        } else {
-          step2 = `<p class="text-muted">AI 僅提供一階段提示。</p>`;
-        }
-
-        // 顯示結果並淡入
+        // 🔹 顯示載入動畫
         aiHintArea.innerHTML = `
-          <div class="text-start fade-in">
-            ${step1}
-            ${step2}
-          </div>
+        <div class="text-center text-secondary p-4">
+            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
+            <p class="mt-3 fw-bold">AI 助教正在生成提示中...</p>
+        </div>
         `;
 
-        aiHintArea.style.opacity = 0;
-        setTimeout(() => {
-          aiHintArea.style.transition = "opacity 0.6s ease";
-          aiHintArea.style.opacity = 1;
-        }, 100);
+        // 🔹 準備要送出的程式碼
+        const studentCode = Array.from(codeList.children)
+            .map(li =>
+                " ".repeat((parseInt(li.getAttribute("data-indent")) || 0) * 4) +
+                li.innerText.trim()
+            )
+            .join("\n");
 
-        // 綁定顯示更多提示按鈕
-        const showMoreBtn = document.getElementById("showMoreHintBtn");
-        if (showMoreBtn) {
-          showMoreBtn.addEventListener("click", () => {
-            const secondPart = document.getElementById("step2Container");
-            if (secondPart) {
-              secondPart.style.display = "block";
-              showMoreBtn.remove();
-              playSound("soundClick2", 0.7);
+        const correctCode = codeLines.join("\n");
+
+        try {
+            const res = await fetch("ai_feedback_step.php", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    question_title: <?= json_encode($question['title'] ?? '') ?>,
+                    question_desc: <?= json_encode($question['description'] ?? '') ?>,
+                    student_code: studentCode,
+                    correct_code: correctCode,
+                    avg_attempts: <?= json_encode($avgAttempts ?? 2.0) ?>
+                })
+            });
+
+            const text = await res.text();
+            const clean = text.trim().replace(/^\uFEFF/, "");
+            const data = clean.startsWith("{") ? JSON.parse(clean) : null;
+
+            if (data) {
+                playSound("soundSuccess", 0.8);
+
+                // === 🪜 第一步提示 ===
+                const step1 = data.step1
+                    ? `
+                        <h6>🪜 第一步</h6>
+                        <pre>${data.step1}</pre>
+                      `
+                    : "";
+
+                // === 💡 第二步提示（按鈕展開） ===
+                let step2 = "";
+                if (data.step2) {
+                    step2 = `
+                        <div id="step2Container" style="display:none;">
+                            <h6>💡 第二步</h6>
+                            <pre>${data.step2}</pre>
+                        </div>
+                        <div class="text-center mt-2">
+                            <button id="showMoreHintBtn" class="btn btn-outline-primary btn-sm">
+                                顯示更多提示
+                            </button>
+                        </div>
+                    `;
+                }
+
+                // === 顯示結果（統一包在容器中） ===
+                aiHintArea.innerHTML = `
+                    <div class="aihint-wrapper fade-in">
+                        ${step1}
+                        ${step2}
+                    </div>
+                `;
+
+                // === 綁定「顯示更多提示」按鈕 ===
+                const showMoreBtn = document.getElementById("showMoreHintBtn");
+                if (showMoreBtn) {
+                    showMoreBtn.addEventListener("click", () => {
+                        const secondPart = document.getElementById("step2Container");
+                        if (secondPart) {
+                            secondPart.style.display = "block";
+                            showMoreBtn.remove();
+                            playSound("soundClick2", 0.7);
+                        }
+                    });
+                }
+
+            } else {
+                aiHintArea.innerHTML = `
+                    <p class="text-danger">⚠️ 無法取得 AI 提示，請稍後再試。</p>
+                `;
+                playSound("soundError", 0.8);
             }
-          });
+        } catch (err) {
+            aiHintArea.innerHTML = `
+                <p class="text-danger">💥 發生錯誤：${err.message}</p>
+            `;
+            playSound("soundError", 0.8);
         }
-
-      } else {
-        aiHintArea.innerHTML = `<p class="text-danger">⚠️ 無法取得 AI 提示，請稍後再試。</p>`;
-        playSound("soundError", 0.8);
-      }
-    } catch (err) {
-      aiHintArea.innerHTML = `<p class="text-danger">💥 發生錯誤：${err.message}</p>`;
-      playSound("soundError", 0.8);
-    }
-  });
+    });
 }
+
+
 
 
 
@@ -1129,21 +1108,41 @@ const submitBtn = document.getElementById("submitOrder");
 
         <?php if ($testGroupId): ?>
             <?php
-                // 🧩 題組模式：由題組 question_ids 控制跳題順序
+                // 題組內的題目 id 陣列
                 $questionIds = json_decode($groupData['question_ids'], true) ?? [];
+
+                // 找目前題目的 index
                 $currentIndex = array_search($questionId, $questionIds);
+
+                // 下一題 id
                 $nextIdInGroup = $questionIds[$currentIndex + 1] ?? null;
+
+                // 轉換成 guid
+                $nextGuidInGroup = null;
+                if ($nextIdInGroup) {
+                    $stmt = $conn->prepare("SELECT guid FROM questions WHERE id=?");
+                    $stmt->bind_param("i", $nextIdInGroup);
+                    $stmt->execute();
+                    $nextGuidInGroup = $stmt->get_result()->fetch_column();
+                    $stmt->close();
+                }
             ?>
-            const nextUrl = <?= $nextIdInGroup 
-                ? json_encode("practice_drag.php?question_id={$nextIdInGroup}&test_group_id={$testGroupId}") 
-                : json_encode("quiz.php?set={$testGroupId}&done=1") ?>;
+
+            const nextUrl = <?= $nextGuidInGroup
+                ? json_encode("practice_drag.php?guid={$nextGuidInGroup}&test_group_id={$testGroupId}") 
+                : json_encode("quiz.php?set={$testGroupId}&done=1")
+            ?>;
+
         <?php else: ?>
-            const nextUrl = <?= $nextId 
-                ? json_encode("practice_drag.php?question_id={$nextId}") 
-                : ($nextChapterFirstQId 
-                    ? json_encode("practice_drag.php?question_id={$nextChapterFirstQId}") 
-                    : json_encode("practice_list.php?chapter={$chapterId}&done=1")) ?>;
+            const nextUrl = <?= $nextGuid
+                ? json_encode("practice_drag.php?guid={$nextGuid}") 
+                : ($nextChapterFirstGuid
+                    ? json_encode("practice_drag.php?guid={$nextChapterFirstGuid}") 
+                    : json_encode("practice_list.php?chapter={$chapterId}&done=1"))
+            ?>;
         <?php endif; ?>
+
+
 
 
         if (usedTools.length > 0) {
