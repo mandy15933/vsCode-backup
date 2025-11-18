@@ -1047,25 +1047,27 @@ if (aiHintBtn && !window._clickBound.aihint) {
 
 
 // === ✅ 提交答案 ===
+// === ✅ 提交答案 ===
 const submitBtn = document.getElementById("submitOrder");
-    if (submitBtn) {
-    submitBtn.addEventListener("click", async () => {
-        const checkResult = await compareCodeOrder();
-        if (!checkResult || typeof checkResult.result === "undefined") return;
+if (submitBtn) {
+submitBtn.addEventListener("click", async () => {
 
-        const isCorrect = checkResult.result;
-        const humanMsg = checkResult.message || "";
-        playSound("soundClick", 0.6);
+    const checkResult = await compareCodeOrder();
+    if (!checkResult || typeof checkResult.result === "undefined") return;
 
-        const timeSpent = Math.floor((Date.now() - startTime) / 1000);
-        const studentCode = Array.from(codeList.children)
+    const isCorrect = checkResult.result;
+    const humanMsg = checkResult.message || "";
+    playSound("soundClick", 0.6);
+
+    const timeSpent = Math.floor((Date.now() - startTime) / 1000);
+    const studentCode = Array.from(codeList.children)
         .map(li => " ".repeat((parseInt(li.getAttribute("data-indent")) || 0) * 4)
-            + li.innerText.replace(/\u200B/g, "").trim())
+        + li.innerText.replace(/\u200B/g, "").trim())
         .join("\n");
-        const aiComment = aiHintArea?.innerText?.trim() || "";
-        const viewedTypes = Array.from(viewedTypesSet);
+    const aiComment = aiHintArea?.innerText?.trim() || "";
+    const viewedTypes = Array.from(viewedTypesSet);
 
-        const payload = {
+    const payload = {
         question_id: <?= $questionId ?>,
         is_correct: isCorrect ? 1 : 0,
         time_spent: timeSpent,
@@ -1077,9 +1079,9 @@ const submitBtn = document.getElementById("submitOrder");
         used_ai_visual: viewedTypes.includes("mindmap") || viewedTypes.includes("flowchart"),
         ai_comment: aiComment,
         test_group_id: <?= isset($testGroupId) ? (int)$testGroupId : 'null' ?>
-        };
+    };
 
-        try {
+    try {
         const res = await fetch("save_answer.php", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1088,10 +1090,8 @@ const submitBtn = document.getElementById("submitOrder");
         const data = await res.json();
         console.log("✅ 儲存結果：", data);
 
-        // ❌ 答錯時（Swal 已顯示，不再重複）
         if (!isCorrect) return;
 
-        // ✅ 答對
         playSound("soundCorrect", 1);
         await Swal.fire({
             icon: "success",
@@ -1101,38 +1101,15 @@ const submitBtn = document.getElementById("submitOrder");
             showConfirmButton: false
         });
 
-        // === 🧠 問卷流程 ===
         const usedTools = [];
         if (viewedTypesSet.has("mindmap")) usedTools.push("mindmap");
         if (viewedTypesSet.has("flowchart")) usedTools.push("flowchart");
 
         <?php if ($testGroupId): ?>
-            <?php
-                // 題組內的題目 id 陣列
-                $questionIds = json_decode($groupData['question_ids'], true) ?? [];
-
-                // 找目前題目的 index
-                $currentIndex = array_search($questionId, $questionIds);
-
-                // 下一題 id
-                $nextIdInGroup = $questionIds[$currentIndex + 1] ?? null;
-
-                // 轉換成 guid
-                $nextGuidInGroup = null;
-                if ($nextIdInGroup) {
-                    $stmt = $conn->prepare("SELECT guid FROM questions WHERE id=?");
-                    $stmt->bind_param("i", $nextIdInGroup);
-                    $stmt->execute();
-                    $nextGuidInGroup = $stmt->get_result()->fetch_column();
-                    $stmt->close();
-                }
-            ?>
-
             const nextUrl = <?= $nextGuidInGroup
                 ? json_encode("practice_drag.php?guid={$nextGuidInGroup}&test_group_id={$testGroupId}") 
                 : json_encode("quiz.php?set={$testGroupId}&done=1")
             ?>;
-
         <?php else: ?>
             const nextUrl = <?= $nextGuid
                 ? json_encode("practice_drag.php?guid={$nextGuid}") 
@@ -1142,60 +1119,75 @@ const submitBtn = document.getElementById("submitOrder");
             ?>;
         <?php endif; ?>
 
-
-
-
         if (usedTools.length > 0) {
             try {
-            const feedbackCheck = await fetch(`check_feedback.php?question_id=<?= $questionId ?>`);
-            const feedbackData = await feedbackCheck.json();
-            const remainingTools = usedTools.filter(t => !(feedbackData.answered || []).includes(t));
+                const feedbackCheck = await fetch(`check_feedback.php?question_id=<?= $questionId ?>`);
+                const feedbackData = await feedbackCheck.json();
 
-            if (remainingTools.length === 0) {
+                const remainingTools = usedTools.filter(
+                    t => !(feedbackData.answered || []).includes(t)
+                );
+
+                const lockedQid = localStorage.getItem("feedback_lock_question");
+                if (lockedQid && Number(lockedQid) === <?= $questionId ?>) {
+                    await Swal.fire({
+                        icon: "warning",
+                        title: "⚠️ 尚未完成問卷",
+                        text: "請先完成問卷才能進入下一題！"
+                    });
+                    return;
+                }
+
+                for (const toolType of remainingTools) {
+                    await showFeedbackModal(toolType, <?= $questionId ?>);
+
+                    const stillLocked = localStorage.getItem("feedback_lock_question");
+                    if (stillLocked) {
+                        await Swal.fire({
+                            icon: "warning",
+                            title: "⚠️ 尚未完成問卷",
+                            text: "請先完成問卷才能繼續。"
+                        });
+                        return;
+                    }
+                }
+
+                await Swal.fire({
+                    icon: "success",
+                    title: "✅ 已完成所有問卷",
+                    text: "感謝你的回饋！即將進入下一題～",
+                    timer: 1200,
+                    showConfirmButton: false
+                });
+
+                window.location.href = nextUrl;
+                return;
+
+            } catch (err) {
+                console.error("💥 問卷流程錯誤：", err);
+                await Swal.fire({
+                    icon: "error",
+                    title: "💥 無法載入問卷",
+                    text: "伺服器錯誤，將直接跳至下一題。"
+                });
                 window.location.href = nextUrl;
                 return;
             }
-
-            for (const toolType of remainingTools) {
-                await showFeedbackModal(toolType, <?= $questionId ?>);
-            }
-
-            await Swal.fire({
-                icon: "success",
-                title: "✅ 已完成所有問卷",
-                text: "感謝你的回饋！即將進入下一題～",
-                timer: 1200,
-                showConfirmButton: false
-            });
-
-            window.location.href = nextUrl;
-
-            } catch (err) {
-            console.error("💥 問卷流程錯誤：", err);
-            await Swal.fire({
-                icon: "error",
-                title: "💥 無法載入問卷",
-                text: "伺服器錯誤，將直接跳至下一題。"
-            });
-            window.location.href = nextUrl;
-            }
-
-        } else {
-            // 🧩 未使用輔助工具 → 直接跳轉
-            window.location.href = nextUrl;
         }
-        } catch (err) {
+
+        window.location.href = nextUrl;
+
+    } catch (err) {
         console.error("💥 儲存錯誤：", err);
         Swal.fire({
             icon: "error",
             title: "💥 系統錯誤",
             text: err.message
         });
-        }
-    });
     }
 
-
+});  // 🔥 addEventListener 結束
+}     // 🔥 if (submitBtn) 結束
 
 
 
