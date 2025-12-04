@@ -1,69 +1,95 @@
 <?php
-/**
- * =====================================================
- * 🔹 openai.php
- * 功能：提供 chat_with_openai() 給其他模組呼叫
- * =====================================================
- */
+// openai.php
+// ★ 不需要 Composer，含自動 .env 解析、標準 OpenAI API 呼叫 ★
 
-function chat_with_openai(string $prompt, string $model = 'gpt-4o-mini', float $temperature = 0.7): array
-{
-    // === 1️⃣ 嘗試載入 .env 檔案 ===
-    $envPath = __DIR__ . '/.env';
-    if (file_exists($envPath)) {
-        foreach (file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
-            if (strpos(trim($line), '#') === 0) continue;
-            [$key, $value] = array_pad(explode('=', $line, 2), 2, null);
-            if ($key && $value) putenv(trim($key) . '=' . trim($value));
-        }
+// =======================================
+// 1️⃣ 內建 .env 解析（不需 composer）
+// =======================================
+function load_env($path = __DIR__ . '/.env') {
+    if (!file_exists($path)) return;
+
+    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '' || strpos($line, '#') === 0) continue;
+
+        list($key, $value) = array_map('trim', explode('=', $line, 2));
+        $value = trim($value, "\"'"); // 去除引號
+
+        $_ENV[$key] = $value;
+        putenv("$key=$value");
+    }
+}
+load_env();
+
+
+// =======================================
+// 2️⃣ 通用 ChatGPT 呼叫（回傳字串）
+// =======================================
+function chat_with_openai(
+    string $prompt,
+    string $systemRole = "python 教學專家",
+    string $model = "gpt-4o-mini",
+    float $temperature = 0.7
+): string {
+
+    $apiKey = $_ENV["OPENAI_API_KEY"] ?? null;
+
+    if (!$apiKey) {
+        return "⚠️ 尚未設定 OPENAI_API_KEY（請編輯 .env 檔）。";
     }
 
-    // === 2️⃣ 從環境變數中取得 API 金鑰 ===
-    $apiKey = getenv('OPENAI_API_KEY');
-    if (!$apiKey || stripos($apiKey, 'sk-') !== 0) {
-        return ['error' => '❌ 找不到有效的 OPENAI_API_KEY，請檢查 .env 檔案。'];
-    }
+    $url = "https://api.openai.com/v1/chat/completions";
 
-    // === 3️⃣ 準備 API 請求資料 ===
-    $postData = [
-        'model' => $model,
-        'messages' => [
-            ['role' => 'system', 'content' => '你是一位耐心的 Python 教學助理，擅長提供兩步驟提示。'],
-            ['role' => 'user', 'content' => $prompt]
-        ],
-        'temperature' => $temperature
+    // 組合 payload
+    $payload = [
+        "model" => $model,
+        "temperature" => $temperature,
+        "messages" => [
+            ["role" => "system", "content" => $systemRole],
+            ["role" => "user", "content" => $prompt]
+        ]
     ];
 
-    // === 4️⃣ 發送 cURL 請求 ===
-    $ch = curl_init('https://api.openai.com/v1/chat/completions');
+    // CURL
+    $ch = curl_init();
     curl_setopt_array($ch, [
+        CURLOPT_URL            => $url,
+        CURLOPT_POST           => true,
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST => true,
-        CURLOPT_HTTPHEADER => [
-            'Content-Type: application/json',
-            'Authorization: Bearer ' . $apiKey
+        CURLOPT_TIMEOUT        => 20,
+        CURLOPT_HTTPHEADER     => [
+            "Content-Type: application/json",
+            "Authorization: Bearer " . $apiKey
         ],
-        CURLOPT_POSTFIELDS => json_encode($postData, JSON_UNESCAPED_UNICODE),
-        CURLOPT_TIMEOUT => 40
+        CURLOPT_POSTFIELDS     => json_encode($payload, JSON_UNESCAPED_UNICODE)
     ]);
 
     $response = curl_exec($ch);
-    $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $error = curl_error($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE) ?: 0; // ← 確保永遠有值
+
+    // curl 錯誤（伺服器無回應）
+    if (curl_errno($ch)) {
+        $error = curl_error($ch);
+        curl_close($ch);
+        return "❌ CURL 錯誤：$error（伺服器無回應）";
+    }
+
     curl_close($ch);
 
-    if ($response === false) {
-        return ['error' => '❌ cURL 連線失敗：' . $error];
+    // HTTP 不是 200 → API 錯誤
+    if ($httpCode !== 200) {
+        return "❌ API 呼叫失敗（HTTP $httpCode）\n原始回應：\n$response";
     }
 
-    if ($status !== 200) {
-        return ['error' => "❌ HTTP $status 錯誤：$response"];
-    }
-
+    // JSON 解析
     $data = json_decode($response, true);
-    if (json_last_error() !== JSON_ERROR_NONE) {
-        return ['error' => '❌ JSON 解析失敗：' . json_last_error_msg()];
+
+    // 沒內容
+    if (!isset($data["choices"][0]["message"]["content"])) {
+        return "⚠️ AI 沒有回傳內容。\n原始回應：\n$response";
     }
 
-    return $data;
+    return $data["choices"][0]["message"]["content"];
 }

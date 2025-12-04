@@ -55,20 +55,21 @@ Python 程式碼：
 請直接輸出流程圖JSON，不要加入解釋、文字或 Markdown。
 EOT;
 
-$response = chat_with_openai($prompt);
+$reply = chat_with_openai($prompt, "流程圖生成專家");
 
-if (!isset($response['choices'][0]['message']['content'])) {
-echo json_encode(['error' => '❌ AI 回傳異常', 'raw' => $response]);
-exit;
-}
-
-$reply = trim($response['choices'][0]['message']['content']);
-$clean = preg_replace('/(?:json)?/i', '', $reply); $clean = preg_replace('//', '', $clean);
+// === 清除多餘內容（移除 Markdown、標籤等） ===
+$clean = trim($reply);
+$clean = preg_replace('/json/i', '', $clean); $clean = preg_replace('//i', '', $clean);
 $clean = trim($clean);
 
+// === 嘗試解析 JSON ===
 $json = json_decode($clean, true);
+
 if (!$json || !isset($json['flowchart'])) {
-echo json_encode(['error' => '⚠️ JSON 格式錯誤', 'raw' => $reply]);
+echo json_encode([
+'error' => '⚠️ JSON 格式錯誤',
+'raw' => $reply
+]);
 exit;
 }
 

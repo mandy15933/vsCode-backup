@@ -1,0 +1,490 @@
+<?php
+session_start();
+require 'db.php';
+
+if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+    echo "<script>
+        alert('您沒有權限進入此頁面');
+        window.location.href = 'index.php';
+    </script>";
+    exit;
+}
+
+/* 取得所有班級 */
+$classList = $conn->query("
+    SELECT DISTINCT ClassName 
+    FROM users 
+    WHERE role='student'
+    ORDER BY ClassName
+")->fetch_all(MYSQLI_ASSOC);
+
+/* 被選擇的班級（預設第一個） */
+$selectClass = $_GET['class'] ?? ($classList[0]['ClassName'] ?? null);
+
+/* 排行榜日期 (預設今日) */
+$today = date("Y-m-d");
+$selectDate = $_GET['rank_date'] ?? $today;
+
+$start = $selectDate . " 00:00:00";
+$end   = $selectDate . " 23:59:59";
+
+
+/* ===============================
+   1. 章節完成率（排除隱藏題目）
+================================ */
+
+/* 該班學生數 */
+$sql_student_count = "
+    SELECT COUNT(*) AS total_students 
+    FROM users 
+    WHERE ClassName = ? AND role='student'
+";
+$stmt = $conn->prepare($sql_student_count);
+$stmt->bind_param("s", $selectClass);
+$stmt->execute();
+$totalStudents = $stmt->get_result()->fetch_assoc()['total_students'];
+$stmt->close();
+
+
+/* 各章節題數（排除隱藏題目） */
+$sql_chapter_questions = "
+    SELECT chapter, COUNT(*) AS q_count
+    FROM questions
+    WHERE is_hidden = 0
+    GROUP BY chapter
+";
+$chapterQuestions = [];
+$res = $conn->query($sql_chapter_questions);
+while ($row = $res->fetch_assoc()) {
+    $chapterQuestions[$row['chapter']] = $row['q_count'];
+}
+
+
+/* 該班每題是否正確（每題每生最多計一次，排除隱藏題目） */
+$sql_chapter_done = "
+    SELECT 
+        q.chapter,
+        sa.user_id,
+        sa.question_id,
+        MAX(sa.is_correct) AS correct_once
+    FROM questions q
+    LEFT JOIN student_answers sa ON sa.question_id = q.id
+    LEFT JOIN users u ON sa.user_id = u.UserID
+    WHERE q.is_hidden = 0
+      AND u.ClassName = ?
+    GROUP BY q.chapter, sa.user_id, sa.question_id
+";
+$stmt = $conn->prepare($sql_chapter_done);
+$stmt->bind_param("s", $selectClass);
+$stmt->execute();
+$result = $stmt->get_result();
+
+$chapterDone = [];
+while ($row = $result->fetch_assoc()) {
+    if (!isset($chapterDone[$row['chapter']])) {
+        $chapterDone[$row['chapter']] = 0;
+    }
+    if ($row['correct_once'] == 1) {
+        $chapterDone[$row['chapter']]++;
+    }
+}
+$stmt->close();
+
+
+/* 組合章節完成率 */
+$chapters = [];
+foreach ($chapterQuestions as $chapterId => $qCount) {
+
+    $should = $totalStudents * $qCount;
+    $done   = $chapterDone[$chapterId] ?? 0;
+
+    $percent = $should > 0
+        ? round(($done / $should) * 100, 1)
+        : 0;
+
+    $chapters[] = [
+        "id" => $chapterId,
+        "title" => "章節 $chapterId",
+        "should" => $should,
+        "done" => $done,
+        "percent" => $percent
+    ];
+}
+
+
+
+
+/* ===============================
+   2. 題目完成度總覽
+================================ */
+$sql_questions = "
+    SELECT 
+        q.id,
+        q.title,
+        COUNT(sa.id) AS attempts,
+        SUM(sa.is_correct) AS correct
+    FROM questions q
+    LEFT JOIN student_answers sa ON sa.question_id = q.id
+    LEFT JOIN users u ON sa.user_id = u.UserID
+
+    WHERE u.ClassName = ?
+       OR u.ClassName IS NULL
+
+    GROUP BY q.id
+";
+$stmt = $conn->prepare($sql_questions);
+$stmt->bind_param("s", $selectClass);
+$stmt->execute();
+$questionStats = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
+
+/* ===============================
+   3. 班級表現
+================================ */
+/* ===============================
+   3. 班級表現比較（新版、最標準）
+================================ */
+
+/* 取得：該班學生人數 */
+$sql_student_count = "
+    SELECT COUNT(*) AS total_students
+    FROM users
+    WHERE ClassName = ? AND role = 'student'
+";
+$stmt = $conn->prepare($sql_student_count);
+$stmt->bind_param("s", $selectClass);
+$stmt->execute();
+$totalStudents = $stmt->get_result()->fetch_assoc()['total_students'];
+$stmt->close();
+
+/* 取得：題目總數 */
+$sql_total_questions = "SELECT COUNT(*) AS total_questions FROM questions WHERE is_hidden = 0";
+$totalQuestions = $conn->query($sql_total_questions)->fetch_assoc()['total_questions'];
+
+/* 應繳題數 */
+$shouldSubmit = $totalStudents * $totalQuestions;
+
+/* 取得：已繳題數（每生每題只算一次）＋正確題數 */
+$sql_submit_correct = "
+   SELECT 
+        COUNT(DISTINCT CONCAT(sa.user_id,'-',sa.question_id)) AS submitted,
+        SUM(CASE WHEN sa.is_correct = 1 THEN 1 ELSE 0 END) AS correct
+    FROM student_answers sa
+    JOIN users u ON sa.user_id = u.UserID
+    JOIN questions q ON sa.question_id = q.id
+    WHERE u.ClassName = ?
+    AND q.is_hidden = 0
+";
+$stmt = $conn->prepare($sql_submit_correct);
+$stmt->bind_param("s", $selectClass);
+$stmt->execute();
+$row = $stmt->get_result()->fetch_assoc();
+$stmt->close();
+
+$submitted = $row['submitted'] ?? 0;
+$correct   = $row['correct']   ?? 0;
+
+/* 計算比率 */
+$submitRate = ($shouldSubmit > 0) ? round(($submitted / $shouldSubmit) * 100, 1) : 0;
+$accuracy   = ($submitted > 0) ? round(($correct / $submitted) * 100, 1) : 0;
+
+/* 組裝成陣列給前端使用 */
+$classPerformance = [
+    "class_name"   => $selectClass,
+    "students"     => $totalStudents,
+    "questions"    => $totalQuestions,
+    "shouldSubmit" => $shouldSubmit,
+    "submitted"    => $submitted,
+    "correct"      => $correct,
+    "submitRate"   => $submitRate,
+    "accuracy"     => $accuracy
+];
+
+
+
+/* ===============================
+   4. 常錯題排行榜
+================================ */
+$sql_wrong = "
+    SELECT 
+        q.id,
+        q.title,
+        SUM(CASE WHEN sa.is_correct = 0 THEN 1 ELSE 0 END) AS wrong_count
+    FROM questions q
+    LEFT JOIN student_answers sa ON sa.question_id = q.id
+    LEFT JOIN users u ON sa.user_id = u.UserID
+    WHERE u.ClassName = ?
+    GROUP BY q.id
+    HAVING wrong_count > 0
+    ORDER BY wrong_count DESC
+    LIMIT 10
+";
+$stmt = $conn->prepare($sql_wrong);
+$stmt->bind_param("s", $selectClass);
+$stmt->execute();
+$wrongList = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
+
+/* ===============================
+   5. 花費時間統計
+================================ */
+$sql_time = "
+    SELECT 
+        u.Username,
+        SUM(sa.time_spent) AS total_time
+    FROM student_answers sa
+    JOIN users u ON sa.user_id = u.UserID
+    WHERE u.ClassName = ?
+    GROUP BY sa.user_id
+    ORDER BY total_time DESC
+    LIMIT 10
+";
+$stmt = $conn->prepare($sql_time);
+$stmt->bind_param("s", $selectClass);
+$stmt->execute();
+$timeRank = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
+
+/* ===============================
+   6. 工具使用分析
+================================ */
+$sql_tool = "
+    SELECT 
+        vf.tool_type,
+        COUNT(*) AS count
+    FROM visual_feedback vf
+    JOIN users u ON vf.user_id = u.UserID
+    WHERE u.ClassName = ?
+    GROUP BY vf.tool_type
+";
+$stmt = $conn->prepare($sql_tool);
+$stmt->bind_param("s", $selectClass);
+$stmt->execute();
+$toolStats = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
+/* ===============================
+7. 歷次每日排行榜
+================================ */
+$sql_rank = "
+    SELECT 
+        sa.user_id,
+        u.Username AS name,
+        COUNT(sa.id) AS attempts,
+        SUM(sa.is_correct) AS correct_count,
+        MAX(CASE WHEN sa.is_correct=1 THEN sa.answered_at END) AS finish_time
+    FROM student_answers sa
+    JOIN users u ON sa.user_id = u.UserID
+    WHERE u.ClassName = ?
+      AND sa.answered_at BETWEEN ? AND ?
+    GROUP BY sa.user_id
+    ORDER BY correct_count DESC, finish_time ASC, attempts ASC
+";
+$stmt = $conn->prepare($sql_rank);
+$stmt->bind_param("sss", $selectClass, $start, $end);
+$stmt->execute();
+$rankList = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
+?>
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>學習分析儀表板</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="anime-yellow-theme.css">
+
+<style>
+body { background: #f8f9fa; }
+.card { border-radius: 16px; }
+.section-title { font-size: 1.4rem; font-weight:bold; margin-top:20px; }
+</style>
+</head>
+<body>
+<?php include 'Navbar.php'; ?>
+
+<div class="p-4">
+
+    <h2 class="mb-4">📊 學習分析儀表板</h2>
+    <form class="row mb-4" method="get">
+        <div class="col-md-4">
+            <label class="form-label fw-bold">選擇班級</label>
+            <select name="class" class="form-select" onchange="this.form.submit()">
+                <?php foreach ($classList as $c): ?>
+                    <option value="<?= $c['ClassName'] ?>" 
+                        <?= $selectClass == $c['ClassName'] ? 'selected' : '' ?>>
+                        <?= $c['ClassName'] ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+    </form>
+</div>
+
+
+<!-- ========== 1. 章節完成率 ========== -->
+<div class="section-title">📘 章節完成率</div>
+<div class="row">
+
+<?php foreach ($chapters as $ch): ?>
+    <div class="col-md-3 mb-3">
+        <div class="card p-3 shadow-sm">
+            <h5><?= $ch['title'] ?></h5>
+
+            <div>應繳：<?= $ch['should'] ?></div>
+            <div>已完成：<?= $ch['done'] ?></div>
+
+            <div class="progress mb-1">
+                <div class="progress-bar bg-success" style="width: <?= $ch['percent'] ?>%"></div>
+            </div>
+
+            <small><?= $ch['percent'] ?>%</small>
+        </div>
+    </div>
+<?php endforeach; ?>
+
+</div>
+
+<!-- ========== 2. 班級表現 ========== -->
+<div class="section-title">🏫 班級表現比較（<?= $classPerformance["class_name"] ?>）</div>
+
+<div class="card p-3 mb-4 shadow-sm">
+
+<table class="table table-bordered table-hover text-center">
+<thead class="table-light fw-bold">
+<tr>
+    <th>班級</th>
+    <th>學生數</th>
+    <th>題目數</th>
+    <th>應繳題數</th>
+    <th>已繳題數</th>
+    <th>繳交率</th>
+    <th>正確題數</th>
+    <!-- <th>正確率</th> -->
+</tr>
+</thead>
+<tbody>
+<tr>
+    <td><?= $classPerformance["class_name"] ?></td>
+    <td><?= $classPerformance["students"] ?></td>
+    <td><?= $classPerformance["questions"] ?></td>
+    <td><?= $classPerformance["shouldSubmit"] ?></td>
+    <td><?= $classPerformance["submitted"] ?></td>
+    <td><?= $classPerformance["submitRate"] ?>%</td>
+    <td><?= $classPerformance["correct"] ?></td>
+    <!-- <td><?= $classPerformance["accuracy"] ?>%</td> -->
+</tr>
+</tbody>
+</table>
+
+</div>
+
+
+<!-- ========== 3. 常錯題 ========== -->
+<div class="section-title">❗ 常錯題排行榜</div>
+<div class="card p-3 mb-4 shadow-sm">
+<table class="table table-bordered">
+<thead class="table-light">
+<tr><th>題目</th><th>錯誤次數</th></tr>
+</thead>
+<tbody>
+<?php foreach ($wrongList as $w): ?>
+<tr>
+    <td><?= $w['title'] ?></td>
+    <td><?= $w['wrong_count'] ?></td>
+</tr>
+<?php endforeach; ?>
+</tbody>
+</table>
+</div>
+
+<!-- ========== 4. 花費時間 ========== -->
+<div class="section-title">⌛ 最長學習時間排行</div>
+<div class="card p-3 mb-4 shadow-sm">
+<table class="table table-bordered">
+<thead class="table-light">
+<tr><th>學生</th><th>總秒數</th></tr>
+</thead>
+<tbody>
+<?php foreach ($timeRank as $t): ?>
+<tr>
+    <td><?= $t['Username'] ?></td>
+    <td><?= $t['total_time'] ?></td>
+</tr>
+<?php endforeach; ?>
+</tbody>
+</table>
+</div>
+
+<!-- ========== 5. 工具使用 ========== -->
+<div class="section-title">🧠 視覺化工具使用次數</div>
+<div class="card p-3 mb-5 shadow-sm">
+<table class="table table-bordered">
+<thead class="table-light">
+<tr><th>工具</th><th>使用次數</th></tr>
+</thead>
+<tbody>
+<?php foreach ($toolStats as $t): ?>
+<tr>
+    <td><?= $t['tool_type'] == 'mindmap' ? '心智圖' : '流程圖' ?></td>
+    <td><?= $t['count'] ?></td>
+</tr>
+<?php endforeach; ?>
+</tbody>
+</table>
+</div>
+
+<!-- ============================================================
+     7. 加入：歷次每日排行榜查詢（日期 + 班級篩選）
+=============================================================== -->
+<div class="section-title">🏆 歷次每日排行榜查詢（班級：<?= $selectClass ?>）</div>
+
+<div class="card p-3 mb-4 shadow-sm">
+
+<form method="get" class="row g-3 mb-3">
+
+    <!-- 保留班級篩選，避免表單送出時遺失 -->
+    <input type="hidden" name="class" value="<?= $selectClass ?>">
+
+    <div class="col-md-6">
+        <label class="form-label">選擇日期</label>
+        <input type="date" name="rank_date" class="form-control"
+               value="<?= htmlspecialchars($selectDate) ?>">
+    </div>
+
+    <div class="col-md-6 d-flex align-items-end">
+        <button class="btn btn-warning w-100">查詢</button>
+    </div>
+</form>
+
+<table class="table table-bordered text-center align-middle">
+<thead class="table-light">
+<tr>
+    <th>名次</th>
+    <th>學生</th>
+    <th>答對題數</th>
+    <th>完成時間</th>
+</tr>
+</thead>
+<tbody>
+<?php if (empty($rankList)): ?>
+<tr><td colspan="4">📭 無資料</td></tr>
+<?php else: $r = 1; foreach ($rankList as $row): ?>
+<tr>
+    <td><?= $r ?></td>
+    <td><?= htmlspecialchars($row['name']) ?></td>
+    <td><?= $row['correct_count'] ?></td>
+    <td><?= $row['finish_time'] ?: '-' ?></td>
+</tr>
+<?php $r++; endforeach; endif; ?>
+</tbody>
+</table>
+
+</div>
+
+</body>
+</html>

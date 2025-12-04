@@ -47,26 +47,28 @@ $prompt = <<<EOT
 EOT;
 
 foreach ($test_cases as $tc) {
-    $prompt .= "\n🟢 Input: " . trim($tc['input']) . "\n🔵 Output: " . trim($tc['output']) . "\n";
+    $prompt .= "\n🟢 Input: " . trim($tc['input']) .
+               "\n🔵 Output: " . trim($tc['output']) . "\n";
 }
 
-$response = chat_with_openai($prompt);
+// === ✔ 使用新版 openai.php（回傳純字串）===
+$reply = chat_with_openai($prompt, "python 心智圖生成專家");
 
-if (!isset($response['choices'][0]['message']['content'])) {
-    echo json_encode(['error' => '❌ AI 回傳異常', 'raw' => $response]);
-    exit;
-}
-
-$reply = trim($response['choices'][0]['message']['content']);
-$clean = preg_replace('/```(?:json)?/i', '', $reply);
-$clean = preg_replace('/```/', '', $clean);
+// === ✔ 清理 Markdown / 雜訊 ===
+$clean = trim($reply);
+$clean = preg_replace('/```json/i', '', $clean);
+$clean = preg_replace('/```/i', '', $clean);
 $clean = trim($clean);
 
+// === ✔ 轉回 JSON ===
 $json = json_decode($clean, true);
+
 if (!$json) {
-    echo json_encode(['error' => '⚠️ JSON 格式錯誤', 'raw' => $reply]);
+    echo json_encode([
+        'error' => '⚠️ JSON 格式錯誤',
+        'raw'   => $reply
+    ]);
     exit;
 }
 
 echo json_encode($json, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-?>

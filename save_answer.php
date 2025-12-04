@@ -140,16 +140,6 @@ else {
     $stmt->close();
 }
 
-// ==================================================================
-// 3️⃣ 儲存程式碼歷史
-// ==================================================================
-$stmt = $conn->prepare("
-    INSERT INTO student_code_history (student_answer_id, code, ai_comment)
-    VALUES (?, ?, ?)
-");
-$stmt->bind_param("iss", $studentAnswerId, $code, $aiComment);
-$stmt->execute();
-$stmt->close();
 
 echo json_encode([
     "success" => true,

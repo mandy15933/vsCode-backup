@@ -3,7 +3,13 @@ session_start();
 
 require 'db.php';
 
-
+if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'student') {
+    echo "<script>
+        alert('請先登入');
+        window.location.href = 'index.php';
+    </script>";
+    exit;
+}
 
 // ================================
 // 0. 相容舊連結：question_id -> guid
@@ -488,6 +494,7 @@ window._clickBound = window._clickBound || {
   flowchart: false,
   aihint: false
 };
+
 
 
 
@@ -1056,9 +1063,10 @@ if (flowchartTab && !window._clickBound.flowchart) {
 }
 
 // === 🤖 AI 提示按鈕 + 限制 3 次 ===
+const CURRENT_QUESTION_ID = <?= $questionId ?>;
+
 const aiHintBtn = document.getElementById("aiHintBtn");
 const aiHintArea = document.getElementById("aiHintArea");
-const CURRENT_QUESTION_ID = <?= $questionId ?>;
 
 // 取得目前 AI 提示使用次數
 async function updateAIHintCount() {
@@ -1102,6 +1110,8 @@ if (aiHintBtn && !window._clickBound.aihint) {
             return;
         }
 
+        // 紀錄動作
+        recordAction("aihint");
         playSound("soundClick", 0.6);
 
         // 切換到 AI 提示頁籤
@@ -1116,7 +1126,7 @@ if (aiHintBtn && !window._clickBound.aihint) {
             </div>
         `;
 
-        // 收集學生程式碼
+        // 取學生程式碼
         const studentCode = Array.from(codeList.children)
             .map(li =>
                 " ".repeat((parseInt(li.getAttribute("data-indent")) || 0) * 4) +
@@ -1145,8 +1155,10 @@ if (aiHintBtn && !window._clickBound.aihint) {
             const result = clean.startsWith("{") ? JSON.parse(clean) : null;
 
             if (result) {
+                startAIHintCooldown();
                 playSound("soundSuccess", 0.8);
 
+                // 移除 AI 可能產出的 "Step 1:" 文字
                 if (result.step1)
                     result.step1 = result.step1.replace(/^step\s*1[:：\-\.]\s*/i, "");
                 if (result.step2)
@@ -1170,26 +1182,17 @@ if (aiHintBtn && !window._clickBound.aihint) {
                     </div>
                 `;
 
+                // 顯示第二步
                 document.getElementById("showMoreHintBtn")?.addEventListener("click", () => {
                     document.getElementById("step2Container").style.display = "block";
                     playSound("soundClick2", 0.7);
                     document.getElementById("showMoreHintBtn").remove();
                 });
 
-                // ⭐⭐⭐ 這裡才是唯一一次記錄（含 ai_comment） ⭐⭐⭐
-                fetch("log_action.php", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        question_id: CURRENT_QUESTION_ID,
-                        action: "aihint",
-                        code: studentCode,
-                        ai_comment: result.step1 + "\n\n" + (result.step2 || "")
-                    })
-                });
-
                 // 更新次數顯示
                 setTimeout(updateAIHintCount, 200);
+                initAIHintCooldown();
+
             }
 
         } catch (err) {
@@ -1197,9 +1200,47 @@ if (aiHintBtn && !window._clickBound.aihint) {
             playSound("soundError", 0.8);
         }
     });
+}
+// === 🥶 AI 提示冷卻系統 ===
+const AI_HINT_COOLDOWN = 10; // 秒
+const cooldownKey = "ai_hint_cooldown_q" + CURRENT_QUESTION_ID;
 
+function startAIHintCooldown() {
+    let cd = AI_HINT_COOLDOWN;
+    localStorage.setItem(cooldownKey, Date.now() + cd * 1000);
+
+    aiHintBtn.disabled = true;
+    aiHintBtn.innerText = `🤖 AI提示（冷卻 ${cd} 秒）`;
+
+    const timer = setInterval(() => {
+        const until = parseInt(localStorage.getItem(cooldownKey) || 0);
+        const now = Date.now();
+
+        if (now >= until) {
+            clearInterval(timer);
+            aiHintBtn.disabled = false;
+            aiHintBtn.innerText = "🤖 AI提示";
+            updateAIHintCount();  // 更新 3 次限制
+            return;
+        }
+
+        const remain = Math.ceil((until - now) / 1000);
+        aiHintBtn.innerText = `🤖 AI提示（冷卻 ${remain} 秒）`;
+
+    }, 500);
 }
 
+function initAIHintCooldown() {
+    const until = parseInt(localStorage.getItem(cooldownKey) || 0);
+    const now = Date.now();
+
+    if (now < until) {
+        aiHintBtn.disabled = true;
+        const remain = Math.ceil((until - now) / 1000);
+        aiHintBtn.innerText = `🤖 AI提示（冷卻 ${remain} 秒）`;
+        startAIHintCooldown(); // 自動倒數
+    }
+}
 
 
 
@@ -1478,6 +1519,37 @@ if (isExamMode) {
 
 
 
+// === 🌙 自動偵測 Session 是否過期 ===
+// 每 30 秒偷偷 ping 一次後端
+setInterval(async () => {
+    try {
+        const res = await fetch("check_session.php?ping=1");
+        const text = await res.text();
+
+        if (text.includes("NOT_LOGGED_IN")) {
+            showLoginExpiredAlert();
+        }
+    } catch (err) {
+        console.warn("session ping failed", err);
+    }
+}, 30000);
+
+
+// === 🚨 SweetAlert：登入過期 ===
+function showLoginExpiredAlert() {
+    Swal.fire({
+        icon: "warning",
+        title: "登入已過期",
+        text: "你已閒置太久，請重新登入。",
+        confirmButtonText: "重新登入",
+        allowOutsideClick: false,
+        allowEscapeKey: false
+    }).then(() => {
+        // 開啟登入 modal（你的 Navbar 一定有）
+        const loginModal = new bootstrap.Modal(document.getElementById("loginModal"));
+        loginModal.show();
+    });
+}
 
 
 

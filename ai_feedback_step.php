@@ -1,95 +1,115 @@
 <?php
-ob_end_clean();
+session_start();
+
+require 'openai.php';
 header('Content-Type: application/json; charset=utf-8');
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
 
-require_once __DIR__ . '/openai.php';
+$input = json_decode(file_get_contents('php://input'), true);
 
-try {
-    $data = json_decode(file_get_contents("php://input"), true);
-    $questionTitle = $data['question_title'] ?? '';
-    $questionDesc  = $data['question_desc'] ?? '';
-    $studentCode   = $data['student_code'] ?? '';
-    $correctCode   = $data['correct_code'] ?? '';
-    $avgAttempts   = $data['avg_attempts'] ?? 2.0;
+if (!$input) {
+    echo json_encode([
+        'step1' => '⚠️ 無法讀取前端資料，請重新再試一次。',
+        'step2' => '請確認 fetch 已使用 JSON.stringify(...)。'
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
-    if (empty($studentCode) || empty($correctCode)) {
-        echo json_encode([
-            'step1' => '⚠️ 無法取得程式內容，請重新整理頁面。',
-            'step2' => ''
-        ], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
+$questionTitle = $input['question_title'] ?? '';
+$questionDesc  = $input['question_desc'] ?? '';
+$studentCode   = $input['student_code'] ?? '';
+$correctCode   = $input['correct_code'] ?? '';
 
-    // 根據嘗試次數決定語氣
-    if ($avgAttempts <= 1.2) {
-        $stylePrompt = "請以啟發式提問為主，幫助學生自行發現邏輯錯誤。";
-    } elseif ($avgAttempts <= 2.0) {
-        $stylePrompt = "請使用兩步驟提示法：第一步指出錯在哪個區塊，第二步給修正方向但保留學生思考空間。";
-    } else {
-        $stylePrompt = "請直接指出錯誤行與修改建議，但不要給完整答案。";
-    }
+$prompt = <<<PROMPT
+你是一位專業的 Python 程式教學助教，負責協助學生完成「拖曳排序＋縮排練習」。  
+你的目標是：根據學生與正確程式碼的差異，給出精準、聚焦、易懂的兩段式提示。
 
-    $prompt = <<<EOD
-你是一位友善的 Python 教學助理，這是一個拖拉程式碼排序以及縮排的練習模式，根據學生程式的排序縮排提供分層回饋。
+請比較：
+1. 【正確程式碼】
+2. 【學生目前的程式碼】
 
-題目標題：{$questionTitle}
-題目說明：{$questionDesc}
+並根據實際差異，自動判斷錯誤類型。（不要硬套每一條）
 
-學生的程式：
-{$studentCode}
+【可能的錯誤類型】（自動比對後才選擇）
+- 程式碼順序錯置，導致邏輯流程被打斷
+- 應屬於同一區塊的語句被拆開
+- 控制結構（if / while / for）縮排層級不正確
+- 條件或迴圈的子區塊放錯層級，邏輯斷裂
+- 輸入 → 處理 → 輸出 的流程顛倒或穿插錯誤
+- 同組資料的輸出或作業沒有被放在一起
+- 計算流程的先後順序混淆
+- 輸出格式規則（對齊方向、欄位位置、組合順序）被破壞
 
-正確的程式：
+（⚠ 你應根據實際差異挑出真正的錯誤，而不是全部逐條提及。）
+
+【回覆格式】
+
+✔ 若學生完全正確：
+Step 1：簡短肯定（例如：順序與縮排完全正確，符合題意）。  
+Step 2：鼓勵語（例如：已掌握重點，可以進入下一題）。
+
+✔ 若學生有錯誤：
+Step 1：  
+指出真正的錯誤「類型」，用自然、具體且可理解的語氣，不抽象、不重複題目敘述。  
+（例：某組資料的輸出被拆開、處理流程順序顛倒、縮排層級比正確答案多一層…）
+
+Step 2：  
+給方向性的修正建議，但不能爆雷。  
+（例：應將同一組輸出保持在一起、讓主要流程依題目順序排列、保持子區塊一致縮排…）
+
+【禁止事項】
+- 禁止提供行號
+- 禁止給完整程式碼
+- 禁止說明「哪一行應移到哪裡」
+- 禁止超過每段 60 字
+- 語氣不可公式化，要像真人老師
+
+請依上述規則，以繁體中文生成 Step 1 與 Step 2。
+
+----------------------------------------
+
+【題目標題】
+{$questionTitle}
+
+【題目說明】
+{$questionDesc}
+
+【正確程式碼】
 {$correctCode}
 
-{$stylePrompt}
+【學生程式碼】
+{$studentCode}
 
-請用繁體中文回答，格式如下：
----
-第一步：
-（提示性問題或方向）
----
-第二步：
-（修正方向或具體建議，哪一行要改順序或縮排）
----
-EOD;
 
-    $response = chat_with_openai($prompt);
-    if (isset($response['error'])) {
-        throw new Exception($response['error']);
+PROMPT;
+
+
+
+
+$responseText = chat_with_openai($prompt, "Python 助教", "gpt-4o-mini", 0.7);
+
+// ----------- 解析 Step1 / Step2 ------------
+$step1 = "⚠️ 未找到 Step 1 回覆。";
+$step2 = "⚠️ 未找到 Step 2 回覆。";
+
+if ($responseText && is_string($responseText)) {
+    $parts = preg_split('/Step\s*2[:：]/u', $responseText);
+
+    if (count($parts) == 2) {
+        // 前半段（含 Step 1）
+        $step1_full = trim($parts[0]);
+
+        // 去掉 "Step 1：" 文字
+        $step1 = preg_replace('/Step\s*1[:：]/u', '', $step1_full);
+        $step1 = trim($step1);
+
+        // Step 2 內容
+        $step2 = trim($parts[1]);
     }
-
-    $reply = $response['choices'][0]['message']['content'] ?? '';
-
-    // 正規表示式提取「第一步」「第二步」
-    preg_match('/第一步[:：]\s*(.*?)\n-{3,}\n/su', $reply, $m1);
-    preg_match('/第二步[:：]\s*(.*)$/su', $reply, $m2);
-
-    // fallback：第二種拆法
-    if (empty($m1[1]) && str_contains($reply, '第一步')) {
-        $parts = explode('第二步', $reply);
-        $m1[1] = trim(strip_tags(str_replace(['---', '第一步：', '第一步:'], '', $parts[0])));
-        $m2[1] = isset($parts[1]) ? trim(strip_tags(str_replace(['---', '第二步：', '第二步:'], '', $parts[1]))) : '';
-    }
-
-    $step1 = trim($m1[1] ?? '');
-    $step2 = trim($m2[1] ?? '');
-
-    if (!$step1 && !$step2) {
-        // AI 回覆格式錯誤 fallback
-        $step1 = "⚠️ AI 回覆格式無法辨識，以下是原始內容：";
-        $step2 = $reply ?: "（無回應）";
-    }
-
-    echo json_encode([
-        'step1' => $step1,
-        'step2' => $step2
-    ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-
-} catch (Throwable $e) {
-    echo json_encode([
-        'step1' => '💥 系統錯誤（AI 無法回應）',
-        'step2' => '伺服器錯誤：' . $e->getMessage()
-    ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 }
+
+echo json_encode([
+    'step1' => $step1,
+    'step2' => $step2
+], JSON_UNESCAPED_UNICODE);
+
+exit;

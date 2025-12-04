@@ -2,7 +2,7 @@
 header('Content-Type: application/json; charset=utf-8');
 require_once 'openai.php';
 
-// 關閉錯誤輸出（防止 HTML 干擾 JSON）
+// 關閉 PHP 錯誤輸出（防止污染 JSON）
 ini_set('display_errors', 0);
 error_reporting(0);
 
@@ -21,6 +21,8 @@ $test_cases = json_decode($test_cases_raw, true);
 if (!is_array($test_cases)) {
     $test_cases = [['input' => $test_cases_raw, 'output' => '']];
 }
+
+
 
 // === 3️⃣ 組 Prompt ===
 $prompt = <<<EOT
@@ -102,76 +104,43 @@ $prompt = <<<EOT
 EOT;
 
 foreach ($test_cases as $tc) {
-    $prompt .= "\n🟢 Input:\n" . trim($tc['input']) . "\n🔵 Output:\n" . trim($tc['output']) . "\n";
+    $prompt .= "\n🟢 Input:\n" . trim($tc['input']) .
+               "\n🔵 Output:\n" . trim($tc['output']) . "\n";
 }
 
 $prompt .= <<<EOT
 
----
-
-### Python 程式碼：
+--- Python 程式 ---
 ```python
 {$code_lines}
-請直接輸出 JSON，不要加入解釋、文字或 Markdown。
+請直接輸出 JSON，不要加入任何 Markdown、文字說明、三個反引號。
+必須符合：
 {
-  "mindmap": {...},
-  "flowchart": {...}
+"mindmap": {...},
+"flowchart": {...}
 }
-
-若缺少任一欄位，視為錯誤。
 EOT;
 
-// --- 4️⃣ 呼叫 OpenAI ---
-$response = chat_with_openai($prompt, 'gpt-4o-mini', 0.6);
+// --- 4️⃣ 呼叫 OpenAI（新版：回傳字串） ---
+$reply = chat_with_openai($prompt, "python 視覺化助教");
 
-if (!isset($response['choices'][0]['message']['content'])) {
-    echo json_encode(['error' => '❌ OpenAI 回傳異常', 'raw' => $response]);
-    exit;
-}
-
-// --- 5️⃣ 擷取文字內容 ---
-$reply = trim($response['choices'][0]['message']['content'] ?? '');
-
-// ✅ 移除所有 ```json ... ``` 區塊標籤
-$clean = preg_replace('/```(?:json)?\s*([\s\S]*?)\s*```/i', '$1', $reply);
+// --- 5️⃣ 清理 Markdown ---
+$clean = $reply;
+$clean = preg_replace('/json/i', '', $clean); $clean = preg_replace('//i', '', $clean);
 $clean = trim($clean);
 
-// --- 6️⃣ 嘗試解析多段 JSON ---
-$mindmap = null;
-$flowchart = null;
+// --- 6️⃣ 解析 JSON ---
+$json = json_decode($clean, true);
 
-// 找出所有可能的 JSON 區塊（含巢狀）
-// 用 "```json" 先切段，再逐段解析
-$parts = preg_split('/```(?:json)?/i', $reply);
-
-foreach ($parts as $part) {
-    $part = trim(preg_replace('/```/', '', $part)); // 移除尾端反引號
-    if (strlen($part) < 5) continue; // 太短略過
-
-    $parsed = json_decode($part, true);
-    if (!$parsed) continue;
-
-    // 判斷是哪一種結構
-    if (isset($parsed['meta']) && isset($parsed['format'])) {
-        $mindmap = $parsed;
-    }
-    if (isset($parsed['flowchart']) && is_array($parsed['flowchart'])) {
-        $flowchart = $parsed['flowchart'];
-    }
-}
-
-// --- 7️⃣ 結果驗證 ---
-if (!$mindmap && !$flowchart) {
-    echo json_encode([
-        'error' => '⚠️ AI 回傳格式錯誤，無法解析',
-        'raw' => $reply
-    ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-    exit;
-}
-
-// --- 8️⃣ 最終輸出 ---
+if (!$json || !isset($json['mindmap']) || !isset($json['flowchart'])) {
 echo json_encode([
-    'mindmap' => $mindmap,
-    'flowchart' => $flowchart
+'error' => '⚠️ AI 回傳格式錯誤，找不到 mindmap 或 flowchart',
+'raw' => $reply
 ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+exit;
+}
+
+// --- 7️⃣ 回傳成功結果 ---
+echo json_encode($json, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+?>
 
