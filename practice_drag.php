@@ -1,6 +1,6 @@
 <?php
 session_start();
-
+require 'session_protect.php';
 require 'db.php';
 
 
@@ -247,7 +247,7 @@ $remaining = (int)($remainRow['remaining'] ?? 0);
     <audio id="soundMove" src="sounds/move.mp3?v=1" preload="auto"></audio>
     <link rel="stylesheet" href="style_practice_drag.css?v=2.0">
     <script src="feedback_modal.js?v=1.0"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
     <link rel="stylesheet" href="anime-yellow-theme.css?v=3.0">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.legacy.min.js"></script>
@@ -974,19 +974,8 @@ document.getElementById("flowchart-tab").addEventListener("shown.bs.tab", () => 
 
 
 // 監聽 Tab 切換 → 紀錄學生操作
-function logAction(actionType, questionId) {
-    fetch("log_action.php", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            action: actionType,
-            question_id: questionId
-        })
-    })
-    .then(res => res.json())
-    .then(data => console.log("📌 log_action 回傳：", data))
-    .catch(err => console.error("❌ log_action 錯誤：", err));
-}
+
+
 // === 🪄 初始化 ===
 let mindmapClicks = 0;
 let flowchartClicks = 0;
@@ -1064,6 +1053,8 @@ const CURRENT_QUESTION_ID = <?= $questionId ?>;
 async function updateAIHintCount() {
     const res = await fetch("check_aihint_count.php?question_id=" + CURRENT_QUESTION_ID);
     const data = await res.json();
+    if (handleSessionExpired(data)) return;
+
 
     const used = data.used ?? 0;
     const limit = 3;
@@ -1092,6 +1083,7 @@ if (aiHintBtn && !window._clickBound.aihint) {
         // 再次確認剩餘次數
         const res = await fetch("check_aihint_count.php?question_id=" + CURRENT_QUESTION_ID);
         const data = await res.json();
+        if (handleSessionExpired(data)) return;
         const used = data.used ?? 0;
         const limit = 3;
 
@@ -1140,9 +1132,11 @@ if (aiHintBtn && !window._clickBound.aihint) {
                 })
             });
 
-            const text = await resp.text();
-            const clean = text.trim().replace(/^\uFEFF/, "");
-            const result = clean.startsWith("{") ? JSON.parse(clean) : null;
+            const json = await resp.json().catch(() => null);
+            if (json && handleSessionExpired(json)) return;
+
+            const result = json;
+
 
             if (result) {
                 playSound("soundSuccess", 0.8);
@@ -1186,7 +1180,12 @@ if (aiHintBtn && !window._clickBound.aihint) {
                         code: studentCode,
                         ai_comment: result.step1 + "\n\n" + (result.step2 || "")
                     })
+                })
+                .then(res => res.json())
+                .then(json => {
+                    if (handleSessionExpired(json)) return;
                 });
+
 
                 // 更新次數顯示
                 setTimeout(updateAIHintCount, 200);
@@ -1476,6 +1475,23 @@ if (isExamMode) {
   }
 }
 
+// =============================
+// 🔐 統一 Session 過期檢查功能
+// =============================
+function handleSessionExpired(json) {
+    if (json && json.session_expired) {
+        Swal.fire({
+            icon: "warning",
+            title: "登入已失效",
+            text: "請重新登入後再繼續使用。",
+            allowOutsideClick: false
+        }).then(() => {
+            window.location.href = "index.php";
+        });
+        return true; // 表示已處理
+    }
+    return false; // session 正常
+}
 
 
 

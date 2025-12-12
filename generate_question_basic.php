@@ -28,49 +28,42 @@ if (!$stmt->fetch()) {
 $stmt->close();
 
 $chapterLabel = "第{$chapter}章：{$title}";
-
-// 🔍 檢查是否與現有題目相似
-function is_similar_to_existing($conn, $chapter, $title, $desc) {
-    $stmt = $conn->prepare("SELECT title, description FROM questions WHERE chapter=?");
-    $stmt->bind_param("i", $chapter);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    while ($row = $res->fetch_assoc()) {
-        similar_text($title, $row['title'], $titleSim);
-        similar_text($desc, $row['description'], $descSim);
-        if ($titleSim > 90 || $descSim > 90) {
-            $stmt->close();
-            return true;
-        }
-    }
-    $stmt->close();
-    return false;
-}
-
-// 🧠 第一步：只生成題目、描述、測資與程式碼
 $prompt = <<<EOD
-請生成一個與之前不同的 Python 題目，適合學生練習，
+請設計一個「生活化且多元化」的 Python 程式練習題，並符合以下要求：
+
+【題目風格要求】
+- 題目必須與現有常見題型不同，不能只是基本的字串反轉、加減乘除、迴圈印東西。
+- 題目需要加入「真實生活場景」或「故事背景」，例如：
+  - 購物結帳、飲食健康、交通、社群媒體、遊戲模擬、行事曆、感測器數據、票務、寵物管理等。
+- 內容要具有"情境描述"，讓學生覺得題目是生活中會遇到的問題。
+- 請主動變化題目類型，例如資料過濾、條件邏輯、集合運算、模擬計算、序列分析等，而不是傳統教科書式題目。
+
+【輸入參數】
 章節: "{$chapterLabel}"
 難度: "{$difficulty}"
 
-請只輸出以下結構（JSON 格式）：
-
+【產出格式（JSON）】
 {
   "title": "題目標題",
-  "description": "題目描述",
+  "description": "故事化、生活化的題目內容描述",
   "test_cases": [
     {"input": "輸入範例1", "output": "輸出範例1"},
     {"input": "輸入範例2", "output": "輸出範例2"}
   ],
   "code_lines": [
-    "print('Hello')",
-    "..."
+    "完整且可執行的 Python 解答程式碼，每行一個字串"
   ]
 }
 
-⚠️ 不要輸出心智圖或流程圖。
-請確保 test_cases 至少兩組，程式碼為完整可執行解答。
+【限制】
+- 不要輸出心智圖或流程圖。
+- test_cases 至少 2 組。
+- 程式碼需是完整解答。
+- 題目必須具有生活化的具體情境，避免抽象與模板化。
+
+請直接輸出 JSON，不要加入說明文字。
 EOD;
+
 
 // === 嘗試生成題目，最多 3 次 ===
 $maxRetries = 3;
