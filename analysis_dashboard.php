@@ -111,7 +111,67 @@ foreach ($chapterQuestions as $chapterId => $qCount) {
     ];
 }
 
+/* ===============================
+   各章節視覺化工具使用量
+================================ */
+$sql_visual_chapter = "
+    SELECT
+        chapter_id,
+        SUM(mindmap_clicks)   AS mindmap_total,
+        SUM(flowchart_clicks) AS flowchart_total
+    FROM student_answers sa
+    JOIN users u ON sa.user_id = u.UserID
+    WHERE u.ClassName = ?
+      AND sa.answer_mode = 'practice'
+      AND sa.chapter_id IS NOT NULL
+    GROUP BY chapter_id
+    ORDER BY chapter_id
+";
 
+$stmt = $conn->prepare($sql_visual_chapter);
+$stmt->bind_param("s", $selectClass);
+$stmt->execute();
+$res = $stmt->get_result();
+
+$visualChapter = [];
+while ($row = $res->fetch_assoc()) {
+    $visualChapter[$row['chapter_id']] = [
+        'mindmap'   => (int)$row['mindmap_total'],
+        'flowchart' => (int)$row['flowchart_total']
+    ];
+}
+$stmt->close();
+
+/* ===============================
+   學生平台使用狀況
+================================ */
+$sql_usage = "
+    SELECT
+        COUNT(*) AS total_students,
+        SUM(has_practice) AS active_students
+    FROM (
+        SELECT
+            u.UserID,
+            CASE WHEN COUNT(sa.id) > 0 THEN 1 ELSE 0 END AS has_practice
+        FROM users u
+        LEFT JOIN student_answers sa
+            ON sa.user_id = u.UserID
+            AND sa.answer_mode = 'practice'
+        WHERE u.ClassName = ?
+          AND u.role = 'student'
+        GROUP BY u.UserID
+    ) t
+";
+
+$stmt = $conn->prepare($sql_usage);
+$stmt->bind_param("s", $selectClass);
+$stmt->execute();
+$row = $stmt->get_result()->fetch_assoc();
+$stmt->close();
+
+$totalStudents    = (int)$row['total_students'];
+$activeStudents   = (int)$row['active_students'];
+$inactiveStudents = $totalStudents - $activeStudents;
 
 
 /* ===============================
@@ -142,9 +202,7 @@ $stmt->close();
 /* ===============================
    3. 班級表現
 ================================ */
-/* ===============================
-   3. 班級表現比較（新版、最標準）
-================================ */
+
 
 /* 取得：該班學生人數 */
 $sql_student_count = "
@@ -289,6 +347,8 @@ $stmt->execute();
 $rankList = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
+
+
 ?>
 <!DOCTYPE html>
 <html lang="zh-Hant">
@@ -297,6 +357,9 @@ $stmt->close();
 <title>學習分析儀表板</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="anime-yellow-theme.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+
 
 <style>
 body { background: #f8f9fa; }
@@ -347,6 +410,16 @@ body { background: #f8f9fa; }
     </div>
 <?php endforeach; ?>
 
+</div>
+<!-- ========== 各章節視覺化工具使用量 ========== -->
+<div class="section-title">🧠 各章節視覺化工具使用量</div>
+<div class="card p-3 mb-4 shadow-sm">
+    <canvas id="chapterToolChart" style="max-height: 300px;"></canvas>
+</div>
+<!-- ========== 學生平台使用狀況 ========== -->
+<div class="section-title">👥 學生平台使用狀況</div>
+<div class="card p-3 mb-5 shadow-sm">
+    <canvas id="usageChart" style="max-height: 260px;"></canvas>
 </div>
 
 <!-- ========== 2. 班級表現 ========== -->
@@ -422,7 +495,7 @@ body { background: #f8f9fa; }
 
 <!-- ========== 5. 工具使用 ========== -->
 <div class="section-title">🧠 視覺化工具使用次數</div>
-<div class="card p-3 mb-5 shadow-sm">
+<div class="card p-5 mb-10 shadow-sm">
 <table class="table table-bordered">
 <thead class="table-light">
 <tr><th>工具</th><th>使用次數</th></tr>
@@ -488,3 +561,90 @@ body { background: #f8f9fa; }
 
 </body>
 </html>
+
+<script>
+    const chapterLabels = <?= json_encode(array_map(fn($c) => "第 {$c} 章", array_keys($visualChapter))) ?>;
+    const mindmapData   = <?= json_encode(array_column($visualChapter, 'mindmap')) ?>;
+    const flowchartData = <?= json_encode(array_column($visualChapter, 'flowchart')) ?>;
+
+    new Chart(document.getElementById('chapterToolChart'), {
+        type: 'bar',
+        data: {
+            labels: chapterLabels,
+            datasets: [
+                {
+                    label: '心智圖',
+                    data: mindmapData,
+                    backgroundColor: '#ffc107'
+                },
+                {
+                    label: '流程圖',
+                    data: flowchartData,
+                    backgroundColor: '#0d6efd'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                datalabels: {
+                    color: '#000',
+                    anchor: 'center',
+                    align: 'center',
+                    font: {
+                        weight: 'bold',
+                        size: 12
+                    },
+                    formatter: value => value > 0 ? value : ''
+                }
+            },
+            scales: {
+                x: { stacked: true },
+                y: {
+                    stacked: true,
+                    beginAtZero: true
+                }
+            }
+        },
+        plugins: [ChartDataLabels] // ⭐ 必加
+    });
+
+    const activeCount   = <?= $activeStudents ?>;
+    const inactiveCount = <?= $inactiveStudents ?>;
+    new Chart(document.getElementById('usageChart'), {
+        type: 'pie',
+        data: {
+            labels: ['有上平台練習', '完全沒上'],
+            datasets: [{
+                data: [activeCount, inactiveCount],
+                backgroundColor: ['#8adf77ff', '#57635dff']
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                datalabels: {
+                    color: '#fff',
+                    font: {
+                        weight: 'bold',
+                        size: 14
+                    },
+                    formatter: (value, ctx) => {
+                        const total = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+                        const percent = ((value / total) * 100).toFixed(1);
+                        return `${value}\n(${percent}%)`;
+                    }
+                },
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        },
+        plugins: [ChartDataLabels]
+    });
+
+
+
+</script>

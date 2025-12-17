@@ -1128,7 +1128,8 @@ if (aiHintBtn && !window._clickBound.aihint) {
                     question_desc: <?= json_encode($question['description'] ?? '') ?>,
                     student_code: studentCode,
                     correct_code: correctCode,
-                    avg_attempts: <?= json_encode($avgAttempts ?? 2.0) ?>
+                    avg_attempts: <?= json_encode($avgAttempts ?? 2.0) ?>,
+                    hint_count: used + 1 
                 })
             });
 

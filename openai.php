@@ -93,3 +93,72 @@ function chat_with_openai(
 
     return $data["choices"][0]["message"]["content"];
 }
+
+function chat_with_openai_hint(
+    string $prompt,
+    string $systemRole = "Python 初學者教學助教",
+    string $model = "gpt-4o-mini"
+): string {
+
+    $apiKey = $_ENV["OPENAI_API_KEY"] ?? null;
+    if (!$apiKey) {
+        return "⚠️ 尚未設定 OPENAI_API_KEY";
+    }
+
+    $url = "https://api.openai.com/v1/chat/completions";
+
+    // ⭐ 教學提示專用設定（省流量核心）
+    $payload = [
+        "model" => $model,
+        "temperature" => 0.3,          // 教學穩定，不發揮
+        "max_tokens" => 180,            // Step1 + Step2 絕對夠
+        "response_format" => [
+            "type" => "json_object"     // ⭐ 強制 JSON（關鍵）
+        ],
+        "messages" => [
+            [
+                "role" => "system",
+                "content" => $systemRole
+            ],
+            [
+                "role" => "user",
+                "content" => $prompt
+            ]
+        ]
+    ];
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_POST => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 20,
+        CURLOPT_HTTPHEADER => [
+            "Content-Type: application/json",
+            "Authorization: Bearer $apiKey"
+        ],
+        CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE)
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE) ?: 0;
+
+    if (curl_errno($ch)) {
+        $err = curl_error($ch);
+        curl_close($ch);
+        return "❌ CURL 錯誤：$err";
+    }
+    curl_close($ch);
+
+    if ($httpCode !== 200) {
+        return "❌ OpenAI API 失敗（HTTP $httpCode）\n$response";
+    }
+
+    $data = json_decode($response, true);
+
+    if (!isset($data["choices"][0]["message"]["content"])) {
+        return "⚠️ AI 未回傳內容。\n$response";
+    }
+
+    return $data["choices"][0]["message"]["content"];
+}

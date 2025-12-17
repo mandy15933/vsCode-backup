@@ -10,7 +10,7 @@ if (!$input) {
     echo json_encode([
         'step1' => '⚠️ 無法讀取前端資料。',
         'step2' => '請確認 fetch 是否正確傳送 JSON。'
-    ]);
+    ], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -21,252 +21,272 @@ $correctCode   = $input['correct_code'] ?? '';
 
 
 // ------------------------------------------------------
-// ① Diff 比對：找出實際錯誤（順序 / 缺行 / 縮排 / 未更新變數）
+// ① Step 類型判定（修正：只認「真正語法上的迴圈」）
 // ------------------------------------------------------
-
 function classify_step_type($line) {
     $t = trim($line);
 
     if ($t === '' || strpos($t, '#') === 0) return 'blank_or_comment';
-    if (preg_match('/while\s+|for\s+/', $t))          return 'loop';
-    if (preg_match('/if\s+|elif\s+|else:/', $t))      return 'condition';
-    if (preg_match('/input\s*\(/', $t))               return 'input';
-    if (preg_match('/print\s*\(/', $t))               return 'output';
-    if (preg_match('/\+=|-=|\*=|\/=/', $t))           return 'update_accumulate';
-    if (preg_match('/=\s*0\b/', $t))                  return 'init_zero';
-    if (preg_match('/=\s*1\b/', $t))                  return 'init_one';
-    if (preg_match('/len\s*\(\s*str\s*\(/', $t))      return 'digit_count';
-    if (preg_match('/%\s*10\b/', $t))                 return 'mod_10';
-    if (preg_match('/\/\/\s*10\b/', $t))             return 'div_10';
-    if (preg_match('/\*\*/', $t))                     return 'power';
-    if (preg_match('/==|!=|>=|<=|>|</', $t))          return 'compare';
-    if (preg_match('/break\b|continue\b/', $t))       return 'loop_control';
 
-    // 一般指定
-    if (preg_match('/^\s*[A-Za-z_]\w*\s*=/', $t))     return 'assign';
+    // ✅ 僅接受真正的 Python 迴圈語法
+    if (preg_match('/^(while|for)\s+.*:\s*$/', $t)) return 'loop';
+
+    if (preg_match('/^(if|elif)\s+.*:\s*$|^else:\s*$/', $t)) return 'condition';
+    if (preg_match('/\binput\s*\(/', $t))  return 'input';
+    if (preg_match('/\bprint\s*\(/', $t))  return 'output';
+
+    if (preg_match('/\+=|-=|\*=|\/=/', $t)) return 'update_accumulate';
+    if (preg_match('/=\s*0\b/', $t))        return 'init_zero';
+    if (preg_match('/=\s*1\b/', $t))        return 'init_one';
+
+    if (preg_match('/%\s*10\b/', $t))       return 'mod_10';
+    if (preg_match('/\/\/\s*10\b/', $t))    return 'div_10';
+    if (preg_match('/\*\*/', $t))           return 'power';
+    if (preg_match('/==|!=|>=|<=|>|</', $t)) return 'compare';
+
+    if (preg_match('/\bbreak\b|\bcontinue\b/', $t)) return 'loop_control';
+
+    if (preg_match('/^[A-Za-z_]\w*\s*=/', $t)) return 'assign';
 
     return 'other';
 }
 
-/**
- * 推測一行是否「應該在迴圈內」（根據正確程式）
- */
-function should_be_in_loop($line, $type) {
-    // 直覺上：累加、更新、處理每筆資料 → 應在迴圈內
-    if (in_array($type, ['update_accumulate', 'mod_10', 'div_10', 'power']))
-        return true;
-    return false;
+// ------------------------------------------------------
+// ② 是否「理論上應該在迴圈內」
+// ------------------------------------------------------
+function should_be_in_loop($type) {
+    return in_array($type, ['update_accumulate', 'mod_10', 'div_10', 'power']);
 }
 
-/**
- * 抓出 while 條件裡用到的變數名稱
- */
-function extract_loop_control_vars($code) {
-    $vars = [];
-    if (preg_match_all('/while\s+(.+):/', $code, $matches)) {
-        foreach ($matches[1] as $cond) {
-            if (preg_match_all('/\b([A-Za-z_]\w*)\b/', $cond, $m2)) {
-                foreach ($m2[1] as $v) {
-                    // 排除保留字與數字
-                    if (in_array($v, ['True','False','and','or','not'])) continue;
-                    $vars[$v] = true;
-                }
+// ------------------------------------------------------
+// ③ Diff 分析（核心修正點都在這）
+// ------------------------------------------------------
+function analyze_input_order($correctLines, $studentLines) {
+
+    // 抓出 input 的變數順序
+    $extractInputs = function($lines) {
+        $inputs = [];
+        foreach ($lines as $line) {
+            $t = trim($line);
+            // 只抓「變數 = input(...)」
+            if (preg_match('/^([A-Za-z_]\w*)\s*=\s*(float|int|eval)?\s*\(?\s*input\s*\(/', $t, $m)) {
+                $inputs[] = $m[1]; // 變數名稱
             }
         }
-    }
-    return array_keys($vars);
-}
+        return $inputs;
+    };
 
-/**
- * 檢查某個變數在學生程式中是否有在迴圈內被更新
- */
-function is_var_updated_inside_loop($varName, $studentLines) {
-    foreach ($studentLines as $line) {
-        $indent = strlen($line) - strlen(ltrim($line));
-        if ($indent <= 0) continue; // 粗略視為不在迴圈內
-        $t = trim($line);
-        if (preg_match('/\b' . preg_quote($varName, '/') . '\b\s*(\+=|-=|\*=|\/=|=)/', $t)) {
-            return true;
+    $correctInputs = $extractInputs($correctLines);
+    $studentInputs = $extractInputs($studentLines);
+
+    // 只處理「兩邊 input 次數相同，且 >=2」
+    if (count($correctInputs) < 2 || count($correctInputs) !== count($studentInputs)) {
+        return null;
+    }
+
+    $mismatches = [];
+
+    foreach ($correctInputs as $i => $var) {
+        if (!isset($studentInputs[$i])) continue;
+        if ($studentInputs[$i] !== $var) {
+            $mismatches[] = [
+                'order' => $i + 1,
+                'correct' => $var,
+                'student' => $studentInputs[$i]
+            ];
         }
     }
-    return false;
+
+    if (empty($mismatches)) return null;
+
+    return [
+        'type' => 'input_order_mismatch',
+        'count' => count($mismatches),
+        'details' => $mismatches
+    ];
 }
 
-/**
- * 萬用 Diff：輸出「給 AI 看得懂」的差異摘要（多行文字）
- */
 function analyze_diff($correct, $student) {
+    
 
-    $cLines = explode("\n", str_replace(["\r\n", "\r"], "\n", trim($correct)));
-    $sLines = explode("\n", str_replace(["\r\n", "\r"], "\n", trim($student)));
-
-    $cLines = array_map('rtrim', $cLines);
-    $sLines = array_map('rtrim', $sLines);
-
+    $cLines = array_map('rtrim', explode("\n", str_replace(["\r\n", "\r"], "\n", trim($correct))));
+    $sLines = array_map('rtrim', explode("\n", str_replace(["\r\n", "\r"], "\n", trim($student))));
+    if ($cLines === $sLines) {
+        return null;
+    }
     $summary = [];
+    $inputOrderResult = analyze_input_order($cLines, $sLines);
 
-    // ① 基本：輸入 / 處理 / 輸出 步驟順序
+    if ($inputOrderResult && $inputOrderResult['type'] === 'input_order_mismatch') {
+
+        if ($inputOrderResult['count'] === 1) {
+            $d = $inputOrderResult['details'][0];
+            $summary[] =
+                "第 {$d['order']} 次輸入所對應的變數與題目描述不一致，可能會讓對應輸入的值在後續計算中出錯。";
+        } else {
+            $orders = array_column($inputOrderResult['details'], 'order');
+            $summary[] =
+                "第 " . implode(' 與 ', $orders) . " 次輸入所對應的變數順序與題目描述不一致，可能影響後續計算。";
+        }
+
+        // ⚠️ 直接回傳，不再做後面的順序檢查（避免提示變雜）
+        return implode("\n", $summary);
+    }
+
     $cTypes = array_map('classify_step_type', $cLines);
     $sTypes = array_map('classify_step_type', $sLines);
 
-    $keyFlow = ['input', 'loop', 'condition', 'output'];
-    foreach ($keyFlow as $keyType) {
+    // ✅ 關鍵：先判定這題「是否真的有迴圈」
+    $hasLoopInCorrect = in_array('loop', $cTypes);
+
+    // --------------------------------------------------
+    // ① 流程順序檢查（沒有迴圈就不檢查 loop）
+    // --------------------------------------------------
+    $keyFlow = $hasLoopInCorrect
+        ? ['input', 'loop', 'condition', 'output']
+        : ['input', 'condition', 'output'];
+
+        $reportedOrderIssue = false;
+        foreach ($keyFlow as $keyType) {
+        if ($reportedOrderIssue) break;
         $cIdx = array_search($keyType, $cTypes);
         $sIdx = array_search($keyType, $sTypes);
+
         if ($cIdx !== false && $sIdx !== false && $cIdx !== $sIdx) {
+
+            $cLineNo = $cIdx + 1;
+            $sLineNo = $sIdx + 1;
+
             if ($keyType === 'input') {
-                $summary[] = "讀取輸入的步驟在程式流程中的位置與正解不同，可能導致後續判斷使用到錯誤或過早的資料。";
-            } elseif ($keyType === 'loop') {
-                $summary[] = "迴圈在整體流程中的位置與正解不同，可能讓重複處理的時機點有所偏移。";
+                $summary[] = "讀取輸入的動作在學生程式第 {$sLineNo} 行，但在正解中應該較早出現（約第 {$cLineNo} 行）。";
             } elseif ($keyType === 'output') {
-                $summary[] = "輸出結果的步驟放在與正解不同的位置，可能尚未完成所有計算就印出結果。";
+                $summary[] = "輸出的動作在學生程式第 {$sLineNo} 行，但在正解中是在計算完成後才出現（約第 {$cLineNo} 行）。";
+            } elseif ($keyType === 'loop') {
+                $summary[] = "重複處理的結構在學生程式第 {$sLineNo} 行，與正解中安排的位置不同（約第 {$cLineNo} 行）。";
             }
+            $reportedOrderIssue = true;
         }
     }
 
-    // ② 檢查「應在迴圈內」的語句是否被移出（或相反）
-    foreach ($cLines as $i => $line) {
-        $type = classify_step_type($line);
-        if (!should_be_in_loop($line, $type)) continue;
+    // --------------------------------------------------
+    // ② 只有「有迴圈題」才做迴圈內外檢查
+    // --------------------------------------------------
+    if ($hasLoopInCorrect) {
 
-        $cIndent = strlen($line) - strlen(ltrim($line));
-        $cInLoop = $cIndent > 0;
+        foreach ($cLines as $i => $line) {
+            $type = classify_step_type($line);
+            if (!should_be_in_loop($type)) continue;
 
-        // 找對應類型的學生行（粗略匹配）
-        foreach ($sLines as $j => $sLine) {
-            if (classify_step_type($sLine) !== $type) continue;
+            $cIndent = strlen($line) - strlen(ltrim($line));
+            $cInLoop = $cIndent > 0;
 
-            $sIndent = strlen($sLine) - strlen(ltrim($sLine));
-            $sInLoop = $sIndent > 0;
+            foreach ($sLines as $sLine) {
+                if (classify_step_type($sLine) !== $type) continue;
 
-            if ($cInLoop && !$sInLoop) {
-                // 正解：在迴圈內；學生：在迴圈外
-                if ($type === 'update_accumulate' || $type === 'power') {
-                    $summary[] = "用來累加或計算每一項的語句被放在迴圈外，會讓這個動作只執行一次，而不是每輪都執行。";
-                } elseif ($type === 'mod_10' || $type === 'div_10') {
-                    $summary[] = "用來逐步拆解或更新數值的語句不在迴圈中，導致迴圈無法逐步推進或處理每一筆資料。";
-                } else {
-                    $summary[] = "部分應該跟著迴圈重複執行的語句被放在外面，造成邏輯只做一次。";
+                $sIndent = strlen($sLine) - strlen(ltrim($sLine));
+                $sInLoop = $sIndent > 0;
+
+                if ($cInLoop && !$sInLoop) {
+                    if ($type === 'update_accumulate' || $type === 'power') {
+                        $summary[] = "需要每次重複處理的計算只執行了一次，導致結果不完整。";
+                    } else {
+                        $summary[] = "應該反覆進行的動作沒有隨著每次處理一起執行。";
+                    }
                 }
             }
         }
     }
 
-    // ③ while 條件用到的變數，學生程式是否有在迴圈內更新
-    $loopVars = extract_loop_control_vars($correct);
-    if (!empty($loopVars)) {
-        $noUpdateVars = [];
-        foreach ($loopVars as $v) {
-            if (!is_var_updated_inside_loop($v, $sLines)) {
-                $noUpdateVars[] = $v;
-            }
-        }
-        if (!empty($noUpdateVars)) {
-            $summary[] = "迴圈條件中使用的變數（例如：" . implode('、', $noUpdateVars) . "）在迴圈內沒有被更新，可能會讓條件永遠不改變。";
-        }
-    }
-
-    // ④ 縮排結構差異（只給一條總結）
-    $indentDiff = false;
+    // --------------------------------------------------
+    // ③ 縮排差異（保留，因為 if 題也會用到）
+    // --------------------------------------------------
     $max = max(count($cLines), count($sLines));
     for ($i = 0; $i < $max; $i++) {
-        $cl = $cLines[$i] ?? '';
-        $sl = $sLines[$i] ?? '';
-        $cIndent = strlen($cl) - strlen(ltrim($cl));
-        $sIndent = strlen($sl) - strlen(ltrim($sl));
+        $cIndent = strlen($cLines[$i] ?? '') - strlen(ltrim($cLines[$i] ?? ''));
+        $sIndent = strlen($sLines[$i] ?? '') - strlen(ltrim($sLines[$i] ?? ''));
         if ($cIndent !== $sIndent) {
-            $indentDiff = true;
+            $summary[] = "程式的縮排結構與正解不同，可能讓原本應該一起執行的動作被分開。";
             break;
         }
     }
-    if ($indentDiff) {
-        $summary[] = "程式的縮排層級與正解不同，可能讓原本應該同一區塊的語句被拆開，影響 if / while 的邏輯。";
-    }
 
-    // ⑤ 若完全比對不出具體問題，給一個保底說明
     if (empty($summary)) {
-        $summary[] = "學生程式與正解在大方向上相似，但在細部順序或縮排安排上仍有差異。";
+        $summary[] = "整體寫法與正解相近，但仍存在細節上的安排差異。";
     }
 
-    // 去除重複訊息
-    $summary = array_values(array_unique($summary));
-
-    return implode("\n", $summary);
+    return implode("\n", array_unique($summary));
 }
-// 從 AI 回應中強制抽取 JSON（避免前後雜訊）
+
+// ------------------------------------------------------
+// ④ JSON 擷取
+// ------------------------------------------------------
 function extract_json($text) {
     $start = strpos($text, "{");
-    $end = strrpos($text, "}");
+    $end   = strrpos($text, "}");
     if ($start === false || $end === false) return null;
-
-    $json = substr($text, $start, $end - $start + 1);
-    return json_decode($json, true);
+    return json_decode(substr($text, $start, $end - $start + 1), true);
 }
 
 
-
 // ------------------------------------------------------
-// ② 產生差異摘要（餵給 AI）
+// ⑤ 產生 Diff 摘要 → 丟給 AI
 // ------------------------------------------------------
 $diffSummary = analyze_diff($correctCode, $studentCode);
-
-
-// ------------------------------------------------------
-// ③ AI Prompt（C 模式：概念 + 思維引導）
-// ------------------------------------------------------
+if ($diffSummary === null) {
+    echo json_encode([
+        "step1" => "✅ 程式的排列順序與縮排皆正確，已符合題目要求。",
+        "step2" => "可以安心進行繳交與批閱。"
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
 $prompt = <<<PROMPT
 你是一位擅長教導初學者的 Python 助教。
-你的任務：根據「差異摘要」產生 **非常直覺、易懂、貼近學生視角** 的兩階段提示。
+請根據「題目敘述」與「差異摘要」，產生兩階段提示，**只能輸出 JSON**。
 
-⚠ 必須只輸出 JSON：
 {
   "step1": "...",
   "step2": "..."
 }
 
-【Step 1（具體描述問題）】
-- 必須清楚講出「哪個概念」被破壞（例如：每位數都要累加、迴圈每輪要更新、條件依賴變數需要初始化…）
-- 必須描述「錯誤造成的結果會是什麼」
-  例如：「s 只會加一次」、「條件永遠不會改變」、「t 永遠不會變小」
-- 說話要直覺，而不是抽象（禁止出現：流程錯誤、執行順序錯誤、資料未更新之類學術詞彙）
+【教學目標（非常重要）】
+- 幫助學生「看懂自己哪個地方沒有符合題目描述」
+- 提示要讓學生「知道該檢查哪一類動作」，而不是直接給答案
 
-【Step 2（簡短引導）】
-- 只能問學生「一個關鍵問題」
-- 必須是直覺性問題，例如：
-  -「這個動作應該要每次迴圈都執行嗎？」
-  -「若某變數不更新，條件還會變化嗎？」
-  -「每一位數是否都應該被處理一次？」
-- 限 50 字內
+--------------------------------------------------
+【題目敘述】
+$questionDesc
 
-【禁止事項】
-- 不能給答案
-- 不能說明程式碼位置
-- 不能給行號
-- 不能提供正確程式碼
-- 不能輸出 JSON 以外格式
-
-----------------------------------------
 【差異摘要】
 $diffSummary
+--------------------------------------------------
 
+【Step 1（概念說明）】
+- 用白話說明「目前哪一個學習概念沒有符合題目敘述」
+- 說明該不符合之處在實際執行時會造成什麼結果或影響
+- 若題目描述中包含順序語意（例如：依序、先後、第一、第二、第三），
+  且差異摘要涉及 input 或執行順序，
+  請從「順序與題目描述不一致所造成的影響」角度說明
+- ❌ 不得提到任何具體程式行為（如：先執行、後執行、讀取時機）
+- ❌ 不得暗示實際程式中動作發生的時間點或位置
+
+
+【Step 2（具體引導，重教學效果）】
+- 只能聚焦一個重點
+- 才可以指出「哪一類動作的執行順序需要被檢查」
+- 可以說明該動作是出現得太早或太晚
+- 可以提到大約第幾行或前後位置，協助學生定位
+- 不得提供正確程式碼或直接給答案
+- 50 字以內
+
+只輸出 JSON，不要有任何其他文字。
 PROMPT;
 
 
-
-
-
 // ------------------------------------------------------
-// ④ 呼叫 GPT
+// ⑥ 呼叫 AI
 // ------------------------------------------------------
-
-$responseText = chat_with_openai($prompt, "Python 助教", "gpt-4o-mini", 0.7);
-
-
-// ------------------------------------------------------
-// ⑤ JSON 解析
-// ------------------------------------------------------
-
+$responseText = chat_with_openai_hint($prompt, "Python 助教", "gpt-4o-mini");
 $response = extract_json($responseText);
 
 echo json_encode([
