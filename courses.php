@@ -2,6 +2,13 @@
 session_start();
 require 'db.php';
 
+if (!isset($_SESSION['user_id'])) {
+    header("Location: index.php");
+    exit;
+}
+
+$userId = $_SESSION['user_id'];
+
 $isLoggedIn = isset($_SESSION['user_id']);
 $username = $_SESSION['username'] ?? '訪客';
 $className = $_SESSION['class_name'] ?? '';
