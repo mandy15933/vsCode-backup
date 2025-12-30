@@ -84,8 +84,10 @@ body {
 }
 
 /* 🖼️ 圖片封面區 */
+/* 🖼️ 圖片封面區 */
 .chapter-card .image-container {
   height: 200px;
+  aspect-ratio: 4 / 3;
   overflow: hidden;
   background: #fff8e1;
   position: relative;
@@ -96,16 +98,28 @@ body {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: 50% 35%;  /* 保留上方章節文字 */
+  object-position: 50% 35%;
   transition: transform 0.3s ease, filter 0.3s ease;
   border-top-left-radius: 16px;
   border-top-right-radius: 16px;
+  will-change: transform;
 }
 
 .chapter-card:hover img.chapter-img {
   transform: scale(1.05);
   filter: brightness(1.08);
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .chapter-card img.chapter-img {
+    transition: none;
+  }
+  .chapter-card:hover img.chapter-img {
+    transform: none;
+    filter: none;
+  }
+}
+
 
 /* 📜 內容區文字 */
 .chapter-card .card-body {
@@ -203,11 +217,12 @@ body {
       <!-- ✅ 加入判斷是否完成章節 -->
       <div class="card chapter-card shadow-sm border-0 text-center <?= !empty($row['completed']) && $row['completed'] ? 'chapter-completed' : '' ?>">
 
-        <!-- 🖼️ 圖片封面 -->
         <div class="image-container">
-          <img src="<?= htmlspecialchars($row['image_path'] ?: 'images/default.jpg') ?>" 
-               class="chapter-img"
-               alt="<?= htmlspecialchars($row['title']) ?>">
+          <img src="<?= htmlspecialchars($row['image_path'] ?: 'images/default.webp') ?>"
+              class="chapter-img"
+              alt="<?= htmlspecialchars($row['title']) ?>"
+              loading="lazy"
+              decoding="async">
         </div>
 
         <!-- 📜 章節內容 -->

@@ -235,22 +235,22 @@ $remaining = (int)($remainRow['remaining'] ?? 0);
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Chiron+GoRound+TC:wght@200..900&display=swap" rel="stylesheet">
-    <audio id="soundClick" src="sounds/click.mp3" preload="auto"></audio>
-    <audio id="soundClick2" src="sounds/click2.mp3?v=1" preload="auto"></audio>
-    <audio id="soundSuccess" src="sounds/success.mp3" preload="auto"></audio>
-    <audio id="soundError" src="sounds/error.mp3?v=1" preload="auto"></audio>
-    <audio id="soundHover" src="sounds/hover.mp3?v=1" preload="auto"></audio>
-    <audio id="soundSelect" src="sounds/select.mp3" preload="auto"></audio>
-    <audio id="soundIndent" src="sounds/indent.mp3?v=1" preload="auto"></audio>
-    <audio id="soundOutdent" src="sounds/outdent.mp3" preload="auto"></audio>
-    <audio id="soundCorrect" src="sounds/correct.mp3" preload="auto"></audio>
-    <audio id="soundMove" src="sounds/move.mp3?v=1" preload="auto"></audio>
-    <link rel="stylesheet" href="style_practice_drag.css?v=2.0">
-    <script src="feedback_modal.js?v=1.0"></script>
+    <audio id="soundClick" src="sounds/click.mp3" preload="none"></audio>
+    <audio id="soundClick2" src="sounds/click2.mp3?v=1" preload="none"></audio>
+    <audio id="soundSuccess" src="sounds/success.mp3" preload="none"></audio>
+    <audio id="soundError" src="sounds/error.mp3?v=1" preload="none"></audio>
+    <audio id="soundHover" src="sounds/hover.mp3?v=1" preload="none"></audio>
+    <audio id="soundSelect" src="sounds/select.mp3" preload="none"></audio>
+    <audio id="soundIndent" src="sounds/indent.mp3?v=1" preload="none"></audio>
+    <audio id="soundOutdent" src="sounds/outdent.mp3" preload="none"></audio>
+    <audio id="soundCorrect" src="sounds/correct.mp3" preload="none"></audio>
+    <audio id="soundMove" src="sounds/move.mp3?v=1" preload="none"></audio>
     
-    <link rel="stylesheet" href="anime-yellow-theme.css?v=3.0">
+    <script src="feedback_modal.js?v=1.0"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.legacy.min.js"></script>
+    <link rel="stylesheet" href="anime-yellow-theme.css?v=3.0">
+    <link rel="stylesheet" href="style_practice_drag.css?v=3.0">
+    
 
 </head>
 <body>
@@ -585,6 +585,22 @@ function initSortable() {
 initSortable();
 
 
+// ================================
+// 🎬 按鈕動畫工具（全域）
+// ================================
+function addButtonEffect(btnId) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+
+    // 讓連續點擊也能重播動畫
+    btn.classList.remove("btn-animate");
+    void btn.offsetWidth; // 強制 reflow
+    btn.classList.add("btn-animate");
+
+    setTimeout(() => {
+        btn.classList.remove("btn-animate");
+    }, 300);
+}
 
 
 
@@ -600,66 +616,123 @@ codeList.addEventListener("click", e => {
 const indentBtn = document.getElementById("indentBtn");
 const outdentBtn = document.getElementById("outdentBtn");
 
-function addButtonEffect(btnId) {
-    const btn = document.getElementById(btnId);
-    btn.classList.add("btn-animate");
-    setTimeout(() => btn.classList.remove("btn-animate"), 300); // 移除動畫 class
+function getPrevIndent(line) {
+    const prev = line.previousElementSibling;
+    return prev ? parseInt(prev.getAttribute("data-indent")) || 0 : 0;
+}
+
+function getCurrentIndent(line) {
+    return parseInt(line.getAttribute("data-indent")) || 0;
+}
+
+function canIndent(line, maxLevel = 5) {
+    const indent = getCurrentIndent(line);
+    const prevIndent = getPrevIndent(line);
+    const maxIndent = Math.min(prevIndent + 1, maxLevel);
+    return indent < maxIndent;
+}
+let indentHintLocked = false;
+
+function showIndentTeachingHint(line) {
+    if (indentHintLocked) return;
+    indentHintLocked = true;
+
+    const prev = line.previousElementSibling;
+
+    // 🔴 本行
+    line.classList.add("indent-warning");
+
+    // 🔵 上一行
+    if (prev) {
+        prev.classList.add("indent-reference");
+    }
+
+    // 💬 教學文字
+    const tip = document.createElement("div");
+    tip.className = "indent-tooltip";
+    tip.innerText = "📌 這一行不能比上一行多縮排超過 1 層";
+    codeList.appendChild(tip);
+
+    tip.style.left = line.offsetLeft + "px";
+    tip.style.top  = (line.offsetTop + line.offsetHeight + 6) + "px";
+
+    // ⏱️【關鍵】動畫結束後，清掉所有狀態
+    setTimeout(() => {
+        line.classList.remove("indent-warning");
+        if (prev) prev.classList.remove("indent-reference");
+        tip.remove();
+        indentHintLocked = false;
+    }, 900); // ⬅ 和 animation 時間一致
+}
+
+
+
+
+
+
+function flashIndentWarning(line) {
+    line.classList.remove("indent-warning");
+    void line.offsetWidth; // reflow
+    line.classList.add("indent-warning");
 }
 
 indentBtn.addEventListener("click", () => {
     if (!selectedLine) return;
-    addButtonEffect("indentBtn"); // 🪄 動畫＋音效
-    playSound("soundOutdent", 0.5);
 
-    let indent = parseInt(selectedLine.getAttribute("data-indent")) || 0;
-    if (indent >= 5) {
-        Swal.fire({
-            icon: "info",
-            title: "縮排已達上限",
-            text: "最多只能縮排 5 層喔！",
-            timer: 1500,
-            showConfirmButton: false
-        });
+    addButtonEffect("indentBtn");
+    playSound("soundIndent", 0.5);
+
+    if (!canIndent(selectedLine)) {
+        playSound("soundError", 0.3);
+        showIndentTeachingHint(selectedLine);
         return;
     }
+
+
+    const indent = getCurrentIndent(selectedLine);
     selectedLine.setAttribute("data-indent", indent + 1);
 });
 
 outdentBtn.addEventListener("click", () => {
     if (!selectedLine) return;
-    addButtonEffect("outdentBtn"); // 🪄 動畫＋音效
-    playSound("soundIndent", 0.5);
 
-    let indent = parseInt(selectedLine.getAttribute("data-indent")) || 0;
+    addButtonEffect("outdentBtn");
+    playSound("soundOutdent", 0.5);
+
+    const indent = getCurrentIndent(selectedLine);
     if (indent <= 0) {
-        Swal.fire({
-            icon: "info",
-            title: "已經在最左邊囉！",
-            text: "縮排層級不能小於 0。",
-            timer: 1500,
-            showConfirmButton: false
-        });
+        flashIndentWarning(selectedLine);
         return;
     }
+
     selectedLine.setAttribute("data-indent", indent - 1);
 });
-
 
 document.addEventListener("keydown", e => {
     if (!selectedLine) return;
 
     if (e.key === "Tab") {
         e.preventDefault();
+
+        const indent = getCurrentIndent(selectedLine);
+
         if (e.shiftKey) {
             // 反縮排
-            let indent = parseInt(selectedLine.getAttribute("data-indent"));
-            playSound("soundOutdent", 0.5);
-            if (indent > 0) selectedLine.setAttribute("data-indent", indent - 1);
+            if (indent > 0) {
+                playSound("soundOutdent", 0.5);
+                selectedLine.setAttribute("data-indent", indent - 1);
+            } else {
+                flashIndentWarning(selectedLine);
+            }
         } else {
-            // 縮排
-            let indent = parseInt(selectedLine.getAttribute("data-indent"));
-            playSound("soundIndent", 0.5);
-            selectedLine.setAttribute("data-indent", indent + 1);
+            // 縮排（同樣使用 canIndent）
+            if (canIndent(selectedLine)) {
+                playSound("soundIndent", 0.5);
+                selectedLine.setAttribute("data-indent", indent + 1);
+            } else {
+                playSound("soundError", 0.3);
+                showIndentTeachingHint(selectedLine);
+            }
         }
     }
 });
@@ -1375,10 +1448,6 @@ async function compareCodeOrder() {
         const userIndentLevels = currentLines.map(l => l.indent);
         const correctIndentLevels = correctLines.map(l => l.indent);
         const indentCorrect = JSON.stringify(userIndentLevels) === JSON.stringify(correctIndentLevels);
-
-        console.group("🔍 縮排比對檢查");
-        console.log("使用者縮排層級：", userIndentLevels);
-        console.log("正確縮排層級：", correctIndentLevels);
         console.groupEnd();
 
         // === Step 5. 全部正確 ===

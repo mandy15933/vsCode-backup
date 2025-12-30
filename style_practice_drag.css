@@ -37,6 +37,7 @@ body {
   border-radius: 8px;
   padding: 6px 12px;
   transition: all 0.2s ease;
+  overflow: visible;
 }
 .code-line:hover {
   background-color: #fffbe5;
@@ -489,4 +490,68 @@ body {
     margin-top: 10px;
 }
 
+
+/* =========================================
+   📐 縮排教學視覺提示（完整穩定版）
+   適用於 Bootstrap / Card / List-group
+   ========================================= */
+
+/* === 確保 code-line 是定位基準 === */
+.code-line {
+    position: relative;
+    overflow: visible !important;
+}
+
+/* ===============================
+   🔴 本行錯誤（紅框）
+   =============================== */
+.code-line.indent-warning::after {
+    content: "";
+    position: absolute;
+    inset: -6px;
+    border: 3px solid #ff5252;
+    border-radius: 10px;
+    box-shadow: 0 0 0 6px rgba(255, 82, 82, 0.35);
+    pointer-events: none;
+    animation: flashRedBox 0.9s ease forwards;
+    z-index: 10;
+}
+
+/* ===============================
+   🔵 上一行參考（藍框）
+   =============================== */
+.code-line.indent-reference::before {
+    content: "";
+    position: absolute;
+    inset: -6px;
+    border: 3px solid #2196f3;
+    border-radius: 10px;
+    box-shadow: 0 0 0 6px rgba(33, 150, 243, 0.35);
+    pointer-events: none;
+    animation: flashBlueBox 0.9s ease forwards;
+    z-index: 9;
+}
+
+/* ===============================
+   🎞️ 動畫（結束後完全隱藏）
+   =============================== */
+@keyframes flashRedBox {
+    0%   { opacity: 0; }
+    25%  { opacity: 1; }
+    75%  { opacity: 1; }
+    100% { opacity: 0; visibility: hidden; }
+}
+
+@keyframes flashBlueBox {
+    0%   { opacity: 0; }
+    25%  { opacity: 1; }
+    75%  { opacity: 1; }
+    100% { opacity: 0; visibility: hidden; }
+}
+
+/* 🚫 避免跟原本 box-shadow 打架 */
+.code-line.indent-warning,
+.code-line.indent-reference {
+    box-shadow: none !important;
+}
 

@@ -85,7 +85,7 @@ body {
   <?php endif; ?>
 
   <br>
-  <img src="images/python_hero.png" alt="Python Hero" class="mt-3">
+  <img src="images/python_hero.png" alt="Python Hero" class="mt-3" loading="lazy" decoding="async">
 </div>
 
 <!-- 🔸 平台特色區 -->

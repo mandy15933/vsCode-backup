@@ -182,7 +182,7 @@ $sql_questions = "
         q.id,
         q.title,
         COUNT(sa.id) AS attempts,
-        SUM(sa.is_correct) AS correct
+        SUM(sa.is_correct) AS correct_attempts
     FROM questions q
     LEFT JOIN student_answers sa ON sa.question_id = q.id
     LEFT JOIN users u ON sa.user_id = u.UserID
@@ -346,8 +346,38 @@ $stmt->bind_param("sss", $selectClass, $start, $end);
 $stmt->execute();
 $rankList = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
+/* ===============================
+8. 每位學生學習概況
+================================ */
+$sql_student_overview = "
+    SELECT
+        u.UserID,
+        u.StudentID,        -- ⭐ 真正的學號
+        u.Username,
+
+        COUNT(DISTINCT sa.question_id) AS completed_questions,
+        COUNT(DISTINCT CASE WHEN sa.is_correct = 1 THEN sa.question_id END) AS correct_questions,
+        SUM(sa.attempts) AS attempts,
+        SUM(sa.time_spent) AS total_time,
+        SUM(sa.mindmap_clicks) AS mindmap_clicks,
+        SUM(sa.flowchart_clicks) AS flowchart_clicks
+    FROM users u
+    LEFT JOIN student_answers sa
+        ON sa.user_id = u.UserID
+        AND sa.answer_mode = 'practice'
+    WHERE u.ClassName = ?
+      AND u.role = 'student'
+    GROUP BY u.UserID
+    ORDER BY completed_questions DESC
+";
 
 
+
+$stmt = $conn->prepare($sql_student_overview);
+$stmt->bind_param("s", $selectClass);
+$stmt->execute();
+$studentOverview = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
 
 ?>
 <!DOCTYPE html>
@@ -365,6 +395,13 @@ $stmt->close();
 body { background: #f8f9fa; }
 .card { border-radius: 16px; }
 .section-title { font-size: 1.4rem; font-weight:bold; margin-top:20px; }
+#studentTable th {
+    cursor: pointer;
+    user-select: none;
+}
+#studentTable th:hover {
+    background-color: #fff3cd;
+}
 </style>
 </head>
 <body>
@@ -558,6 +595,64 @@ body { background: #f8f9fa; }
 </table>
 
 </div>
+<!-- ========== 8. 每位學生學習概況 ========== -->
+<div class="section-title">👤 學生學習概況（<?= htmlspecialchars($selectClass) ?>）</div>
+
+<div class="card p-3 mb-4 shadow-sm">
+<table id="studentTable" class="table table-bordered table-hover text-center align-middle">
+<thead class="table-light fw-bold">
+<tr>
+    <th onclick="sortTable(0)">學生</th>
+    <th onclick="sortTable(1)">學號</th>
+    <th onclick="sortTable(2)">完成題數</th>
+    <th onclick="sortTable(3)">題目完成率</th>
+    <th onclick="sortTable(4)">嘗試成功率</th>
+    <th onclick="sortTable(5)">作答次數</th>
+    <th onclick="sortTable(6)">學習時間（秒）</th>
+    <th onclick="sortTable(7)">心智圖</th>
+    <th onclick="sortTable(8)">流程圖</th>
+    <th onclick="sortTable(9)">學習型態</th>
+</tr>
+</thead>
+<tbody>
+
+<?php if (empty($studentOverview)): ?>
+<tr><td colspan="9">📭 尚無學生資料</td></tr>
+<?php else: foreach ($studentOverview as $s): 
+    $completionRate = $totalQuestions > 0
+        ? round(($s['completed_questions'] / $totalQuestions) * 100, 1)
+        : 0;
+    $attemptSuccessRate = $s['attempts'] > 0
+        ? round(($s['correct_questions'] / $s['attempts']) * 100, 1)
+        : 0;
+
+    if ($s['mindmap_clicks'] > $s['flowchart_clicks']) {
+        $type = '心智圖導向';
+    } elseif ($s['flowchart_clicks'] > $s['mindmap_clicks']) {
+        $type = '流程圖導向';
+    } elseif ($s['flowchart_clicks'] == 0 && $s['mindmap_clicks'] == 0) {
+        $type = '無使用紀錄';
+    } else {
+        $type = '混合型';
+    }
+?>
+<tr>
+    <td><?= htmlspecialchars($s['Username']) ?></td>
+    <td><?= $s['StudentID'] ?></td>
+    <td><?= $s['completed_questions'] ?></td>
+    <td><?= $completionRate ?>%</td>
+    <td><?= $attemptSuccessRate ?>%</td>
+    <td><?= $s['attempts'] ?></td>
+    <td><?= $s['total_time'] ?? 0 ?></td>
+    <td><?= $s['mindmap_clicks'] ?? 0 ?></td>
+    <td><?= $s['flowchart_clicks'] ?? 0 ?></td>
+    <td><?= $type ?></td>
+</tr>
+<?php endforeach; endif; ?>
+
+</tbody>
+</table>
+</div>
 
 </body>
 </html>
@@ -646,5 +741,38 @@ body { background: #f8f9fa; }
     });
 
 
+let sortDirection = {}; // 紀錄每一欄目前排序方向
+
+function sortTable(colIndex) {
+    const table = document.getElementById("studentTable");
+    const tbody = table.tBodies[0];
+    const rows = Array.from(tbody.rows);
+
+    // 預設：第一次點是由大到小
+    const dir = sortDirection[colIndex] === "desc" ? "asc" : "desc";
+    sortDirection[colIndex] = dir;
+
+    rows.sort((a, b) => {
+        let A = a.cells[colIndex].innerText.trim();
+        let B = b.cells[colIndex].innerText.trim();
+
+        // 處理百分比
+        if (A.includes('%')) A = parseFloat(A);
+        if (B.includes('%')) B = parseFloat(B);
+
+        // 處理數字
+        if (!isNaN(A) && !isNaN(B)) {
+            return dir === "desc" ? B - A : A - B;
+        }
+
+        // 文字（學生姓名、學習型態）
+        return dir === "desc"
+            ? B.localeCompare(A, 'zh-Hant')
+            : A.localeCompare(B, 'zh-Hant');
+    });
+
+    // 重畫 tbody
+    rows.forEach(row => tbody.appendChild(row));
+}
 
 </script>
