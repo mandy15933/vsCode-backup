@@ -1,15 +1,9 @@
 <?php
 session_start();
-
+require 'session_protect.php';
 require 'db.php';
 
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'student') {
-    echo "<script>
-        alert('請先登入');
-        window.location.href = 'index.php';
-    </script>";
-    exit;
-}
+
 
 // ================================
 // 0. 相容舊連結：question_id -> guid
@@ -241,22 +235,22 @@ $remaining = (int)($remainRow['remaining'] ?? 0);
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Chiron+GoRound+TC:wght@200..900&display=swap" rel="stylesheet">
-    <audio id="soundClick" src="sounds/click.mp3" preload="auto"></audio>
-    <audio id="soundClick2" src="sounds/click2.mp3?v=1" preload="auto"></audio>
-    <audio id="soundSuccess" src="sounds/success.mp3" preload="auto"></audio>
-    <audio id="soundError" src="sounds/error.mp3?v=1" preload="auto"></audio>
-    <audio id="soundHover" src="sounds/hover.mp3?v=1" preload="auto"></audio>
-    <audio id="soundSelect" src="sounds/select.mp3" preload="auto"></audio>
-    <audio id="soundIndent" src="sounds/indent.mp3?v=1" preload="auto"></audio>
-    <audio id="soundOutdent" src="sounds/outdent.mp3" preload="auto"></audio>
-    <audio id="soundCorrect" src="sounds/correct.mp3" preload="auto"></audio>
-    <audio id="soundMove" src="sounds/move.mp3?v=1" preload="auto"></audio>
-    <link rel="stylesheet" href="style_practice_drag.css?v=2.0">
+    <audio id="soundClick" src="sounds/click.mp3" preload="none"></audio>
+    <audio id="soundClick2" src="sounds/click2.mp3?v=1" preload="none"></audio>
+    <audio id="soundSuccess" src="sounds/success.mp3" preload="none"></audio>
+    <audio id="soundError" src="sounds/error.mp3?v=1" preload="none"></audio>
+    <audio id="soundHover" src="sounds/hover.mp3?v=1" preload="none"></audio>
+    <audio id="soundSelect" src="sounds/select.mp3" preload="none"></audio>
+    <audio id="soundIndent" src="sounds/indent.mp3?v=1" preload="none"></audio>
+    <audio id="soundOutdent" src="sounds/outdent.mp3" preload="none"></audio>
+    <audio id="soundCorrect" src="sounds/correct.mp3" preload="none"></audio>
+    <audio id="soundMove" src="sounds/move.mp3?v=1" preload="none"></audio>
+    
     <script src="feedback_modal.js?v=1.0"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <link rel="stylesheet" href="anime-yellow-theme.css?v=3.0">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.legacy.min.js"></script>
+    <link rel="stylesheet" href="anime-yellow-theme.css?v=3.0">
+    <link rel="stylesheet" href="style_practice_drag.css?v=3.0">
+    
 
 </head>
 <body>
@@ -497,7 +491,6 @@ window._clickBound = window._clickBound || {
 
 
 
-
 // === 🔹 建立打亂後的程式碼與行號對應 ===
 const withIndex = codeLines.map((text, i) => ({ text, orig: i + 1 }));
 let toShuffle = withIndex.slice(0, linesToShuffle);
@@ -592,6 +585,22 @@ function initSortable() {
 initSortable();
 
 
+// ================================
+// 🎬 按鈕動畫工具（全域）
+// ================================
+function addButtonEffect(btnId) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+
+    // 讓連續點擊也能重播動畫
+    btn.classList.remove("btn-animate");
+    void btn.offsetWidth; // 強制 reflow
+    btn.classList.add("btn-animate");
+
+    setTimeout(() => {
+        btn.classList.remove("btn-animate");
+    }, 300);
+}
 
 
 
@@ -607,66 +616,123 @@ codeList.addEventListener("click", e => {
 const indentBtn = document.getElementById("indentBtn");
 const outdentBtn = document.getElementById("outdentBtn");
 
-function addButtonEffect(btnId) {
-    const btn = document.getElementById(btnId);
-    btn.classList.add("btn-animate");
-    setTimeout(() => btn.classList.remove("btn-animate"), 300); // 移除動畫 class
+function getPrevIndent(line) {
+    const prev = line.previousElementSibling;
+    return prev ? parseInt(prev.getAttribute("data-indent")) || 0 : 0;
+}
+
+function getCurrentIndent(line) {
+    return parseInt(line.getAttribute("data-indent")) || 0;
+}
+
+function canIndent(line, maxLevel = 5) {
+    const indent = getCurrentIndent(line);
+    const prevIndent = getPrevIndent(line);
+    const maxIndent = Math.min(prevIndent + 1, maxLevel);
+    return indent < maxIndent;
+}
+let indentHintLocked = false;
+
+function showIndentTeachingHint(line) {
+    if (indentHintLocked) return;
+    indentHintLocked = true;
+
+    const prev = line.previousElementSibling;
+
+    // 🔴 本行
+    line.classList.add("indent-warning");
+
+    // 🔵 上一行
+    if (prev) {
+        prev.classList.add("indent-reference");
+    }
+
+    // 💬 教學文字
+    const tip = document.createElement("div");
+    tip.className = "indent-tooltip";
+    tip.innerText = "📌 這一行不能比上一行多縮排超過 1 層";
+    codeList.appendChild(tip);
+
+    tip.style.left = line.offsetLeft + "px";
+    tip.style.top  = (line.offsetTop + line.offsetHeight + 6) + "px";
+
+    // ⏱️【關鍵】動畫結束後，清掉所有狀態
+    setTimeout(() => {
+        line.classList.remove("indent-warning");
+        if (prev) prev.classList.remove("indent-reference");
+        tip.remove();
+        indentHintLocked = false;
+    }, 900); // ⬅ 和 animation 時間一致
+}
+
+
+
+
+
+
+function flashIndentWarning(line) {
+    line.classList.remove("indent-warning");
+    void line.offsetWidth; // reflow
+    line.classList.add("indent-warning");
 }
 
 indentBtn.addEventListener("click", () => {
     if (!selectedLine) return;
-    addButtonEffect("indentBtn"); // 🪄 動畫＋音效
-    playSound("soundOutdent", 0.5);
 
-    let indent = parseInt(selectedLine.getAttribute("data-indent")) || 0;
-    if (indent >= 5) {
-        Swal.fire({
-            icon: "info",
-            title: "縮排已達上限",
-            text: "最多只能縮排 5 層喔！",
-            timer: 1500,
-            showConfirmButton: false
-        });
+    addButtonEffect("indentBtn");
+    playSound("soundIndent", 0.5);
+
+    if (!canIndent(selectedLine)) {
+        playSound("soundError", 0.3);
+        showIndentTeachingHint(selectedLine);
         return;
     }
+
+
+    const indent = getCurrentIndent(selectedLine);
     selectedLine.setAttribute("data-indent", indent + 1);
 });
 
 outdentBtn.addEventListener("click", () => {
     if (!selectedLine) return;
-    addButtonEffect("outdentBtn"); // 🪄 動畫＋音效
-    playSound("soundIndent", 0.5);
 
-    let indent = parseInt(selectedLine.getAttribute("data-indent")) || 0;
+    addButtonEffect("outdentBtn");
+    playSound("soundOutdent", 0.5);
+
+    const indent = getCurrentIndent(selectedLine);
     if (indent <= 0) {
-        Swal.fire({
-            icon: "info",
-            title: "已經在最左邊囉！",
-            text: "縮排層級不能小於 0。",
-            timer: 1500,
-            showConfirmButton: false
-        });
+        flashIndentWarning(selectedLine);
         return;
     }
+
     selectedLine.setAttribute("data-indent", indent - 1);
 });
-
 
 document.addEventListener("keydown", e => {
     if (!selectedLine) return;
 
     if (e.key === "Tab") {
         e.preventDefault();
+
+        const indent = getCurrentIndent(selectedLine);
+
         if (e.shiftKey) {
             // 反縮排
-            let indent = parseInt(selectedLine.getAttribute("data-indent"));
-            playSound("soundOutdent", 0.5);
-            if (indent > 0) selectedLine.setAttribute("data-indent", indent - 1);
+            if (indent > 0) {
+                playSound("soundOutdent", 0.5);
+                selectedLine.setAttribute("data-indent", indent - 1);
+            } else {
+                flashIndentWarning(selectedLine);
+            }
         } else {
-            // 縮排
-            let indent = parseInt(selectedLine.getAttribute("data-indent"));
-            playSound("soundIndent", 0.5);
-            selectedLine.setAttribute("data-indent", indent + 1);
+            // 縮排（同樣使用 canIndent）
+            if (canIndent(selectedLine)) {
+                playSound("soundIndent", 0.5);
+                selectedLine.setAttribute("data-indent", indent + 1);
+            } else {
+                playSound("soundError", 0.3);
+                showIndentTeachingHint(selectedLine);
+            }
         }
     }
 });
@@ -981,19 +1047,8 @@ document.getElementById("flowchart-tab").addEventListener("shown.bs.tab", () => 
 
 
 // 監聽 Tab 切換 → 紀錄學生操作
-function logAction(actionType, questionId) {
-    fetch("log_action.php", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            action: actionType,
-            question_id: questionId
-        })
-    })
-    .then(res => res.json())
-    .then(data => console.log("📌 log_action 回傳：", data))
-    .catch(err => console.error("❌ log_action 錯誤：", err));
-}
+
+
 // === 🪄 初始化 ===
 let mindmapClicks = 0;
 let flowchartClicks = 0;
@@ -1063,15 +1118,16 @@ if (flowchartTab && !window._clickBound.flowchart) {
 }
 
 // === 🤖 AI 提示按鈕 + 限制 3 次 ===
-const CURRENT_QUESTION_ID = <?= $questionId ?>;
-
 const aiHintBtn = document.getElementById("aiHintBtn");
 const aiHintArea = document.getElementById("aiHintArea");
+const CURRENT_QUESTION_ID = <?= $questionId ?>;
 
 // 取得目前 AI 提示使用次數
 async function updateAIHintCount() {
     const res = await fetch("check_aihint_count.php?question_id=" + CURRENT_QUESTION_ID);
     const data = await res.json();
+    if (handleSessionExpired(data)) return;
+
 
     const used = data.used ?? 0;
     const limit = 3;
@@ -1100,6 +1156,7 @@ if (aiHintBtn && !window._clickBound.aihint) {
         // 再次確認剩餘次數
         const res = await fetch("check_aihint_count.php?question_id=" + CURRENT_QUESTION_ID);
         const data = await res.json();
+        if (handleSessionExpired(data)) return;
         const used = data.used ?? 0;
         const limit = 3;
 
@@ -1110,8 +1167,6 @@ if (aiHintBtn && !window._clickBound.aihint) {
             return;
         }
 
-        // 紀錄動作
-        recordAction("aihint");
         playSound("soundClick", 0.6);
 
         // 切換到 AI 提示頁籤
@@ -1126,7 +1181,7 @@ if (aiHintBtn && !window._clickBound.aihint) {
             </div>
         `;
 
-        // 取學生程式碼
+        // 收集學生程式碼
         const studentCode = Array.from(codeList.children)
             .map(li =>
                 " ".repeat((parseInt(li.getAttribute("data-indent")) || 0) * 4) +
@@ -1146,19 +1201,20 @@ if (aiHintBtn && !window._clickBound.aihint) {
                     question_desc: <?= json_encode($question['description'] ?? '') ?>,
                     student_code: studentCode,
                     correct_code: correctCode,
-                    avg_attempts: <?= json_encode($avgAttempts ?? 2.0) ?>
+                    avg_attempts: <?= json_encode($avgAttempts ?? 2.0) ?>,
+                    hint_count: used + 1 
                 })
             });
 
-            const text = await resp.text();
-            const clean = text.trim().replace(/^\uFEFF/, "");
-            const result = clean.startsWith("{") ? JSON.parse(clean) : null;
+            const json = await resp.json().catch(() => null);
+            if (json && handleSessionExpired(json)) return;
+
+            const result = json;
+
 
             if (result) {
-                startAIHintCooldown();
                 playSound("soundSuccess", 0.8);
 
-                // 移除 AI 可能產出的 "Step 1:" 文字
                 if (result.step1)
                     result.step1 = result.step1.replace(/^step\s*1[:：\-\.]\s*/i, "");
                 if (result.step2)
@@ -1182,17 +1238,31 @@ if (aiHintBtn && !window._clickBound.aihint) {
                     </div>
                 `;
 
-                // 顯示第二步
                 document.getElementById("showMoreHintBtn")?.addEventListener("click", () => {
                     document.getElementById("step2Container").style.display = "block";
                     playSound("soundClick2", 0.7);
                     document.getElementById("showMoreHintBtn").remove();
                 });
 
+                // ⭐⭐⭐ 這裡才是唯一一次記錄（含 ai_comment） ⭐⭐⭐
+                fetch("log_action.php", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        question_id: CURRENT_QUESTION_ID,
+                        action: "aihint",
+                        code: studentCode,
+                        ai_comment: result.step1 + "\n\n" + (result.step2 || "")
+                    })
+                })
+                .then(res => res.json())
+                .then(json => {
+                    if (handleSessionExpired(json)) return;
+                });
+
+
                 // 更新次數顯示
                 setTimeout(updateAIHintCount, 200);
-                initAIHintCooldown();
-
             }
 
         } catch (err) {
@@ -1200,47 +1270,9 @@ if (aiHintBtn && !window._clickBound.aihint) {
             playSound("soundError", 0.8);
         }
     });
-}
-// === 🥶 AI 提示冷卻系統 ===
-const AI_HINT_COOLDOWN = 10; // 秒
-const cooldownKey = "ai_hint_cooldown_q" + CURRENT_QUESTION_ID;
 
-function startAIHintCooldown() {
-    let cd = AI_HINT_COOLDOWN;
-    localStorage.setItem(cooldownKey, Date.now() + cd * 1000);
-
-    aiHintBtn.disabled = true;
-    aiHintBtn.innerText = `🤖 AI提示（冷卻 ${cd} 秒）`;
-
-    const timer = setInterval(() => {
-        const until = parseInt(localStorage.getItem(cooldownKey) || 0);
-        const now = Date.now();
-
-        if (now >= until) {
-            clearInterval(timer);
-            aiHintBtn.disabled = false;
-            aiHintBtn.innerText = "🤖 AI提示";
-            updateAIHintCount();  // 更新 3 次限制
-            return;
-        }
-
-        const remain = Math.ceil((until - now) / 1000);
-        aiHintBtn.innerText = `🤖 AI提示（冷卻 ${remain} 秒）`;
-
-    }, 500);
 }
 
-function initAIHintCooldown() {
-    const until = parseInt(localStorage.getItem(cooldownKey) || 0);
-    const now = Date.now();
-
-    if (now < until) {
-        aiHintBtn.disabled = true;
-        const remain = Math.ceil((until - now) / 1000);
-        aiHintBtn.innerText = `🤖 AI提示（冷卻 ${remain} 秒）`;
-        startAIHintCooldown(); // 自動倒數
-    }
-}
 
 
 
@@ -1416,10 +1448,6 @@ async function compareCodeOrder() {
         const userIndentLevels = currentLines.map(l => l.indent);
         const correctIndentLevels = correctLines.map(l => l.indent);
         const indentCorrect = JSON.stringify(userIndentLevels) === JSON.stringify(correctIndentLevels);
-
-        console.group("🔍 縮排比對檢查");
-        console.log("使用者縮排層級：", userIndentLevels);
-        console.log("正確縮排層級：", correctIndentLevels);
         console.groupEnd();
 
         // === Step 5. 全部正確 ===
@@ -1517,91 +1545,24 @@ if (isExamMode) {
   }
 }
 
-
-
-// === 🌙 自動偵測 Session 是否過期 ===
-// 每 30 秒偷偷 ping 一次後端
-setInterval(async () => {
-    try {
-        const res = await fetch("check_session.php?ping=1");
-        const text = await res.text();
-
-        if (text.includes("NOT_LOGGED_IN")) {
-            showLoginExpiredAlert();
-        }
-    } catch (err) {
-        console.warn("session ping failed", err);
+// =============================
+// 🔐 統一 Session 過期檢查功能
+// =============================
+function handleSessionExpired(json) {
+    if (json && json.session_expired) {
+        Swal.fire({
+            icon: "warning",
+            title: "登入已失效",
+            text: "請重新登入後再繼續使用。",
+            allowOutsideClick: false
+        }).then(() => {
+            window.location.href = "index.php";
+        });
+        return true; // 表示已處理
     }
-}, 30000);
-
-
-// === 🚨 SweetAlert：登入過期 ===
-function showLoginExpiredAlert() {
-    Swal.fire({
-        icon: "warning",
-        title: "登入已過期",
-        text: "你已閒置太久，請重新登入。",
-        confirmButtonText: "重新登入",
-        allowOutsideClick: false,
-        allowEscapeKey: false
-    }).then(() => {
-        // 開啟登入 modal（你的 Navbar 一定有）
-        const loginModal = new bootstrap.Modal(document.getElementById("loginModal"));
-        loginModal.show();
-    });
+    return false; // session 正常
 }
 
-
-
-
-
-
-// // === 🌗 深色模式切換功能 (最終版) ===
-// (function(){
-//   const STORAGE_KEY = 'theme';
-//   const btn = document.getElementById('themeToggle');
-//   const htmlEl = document.documentElement; // 切在 <html>
-
-//   // 套用主題
-//   function applyTheme(mode){
-//     if(mode === 'dark'){
-//       htmlEl.setAttribute('data-theme', 'dark');
-//       if(btn){
-//         btn.classList.remove('btn-outline-dark');
-//         btn.classList.add('btn-outline-light');
-//         btn.innerText = '☀️ 淺色';
-//       }
-//     } else {
-//       htmlEl.removeAttribute('data-theme');
-//       if(btn){
-//         btn.classList.remove('btn-outline-light');
-//         btn.classList.add('btn-outline-dark');
-//         btn.innerText = '🌙 深色';
-//       }
-//     }
-//   }
-
-//   // 初始載入（localStorage > 系統偏好 > 預設亮）
-//   const saved = localStorage.getItem(STORAGE_KEY);
-//   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-//   const theme = saved || (prefersDark ? 'dark' : 'light');
-//   applyTheme(theme);
-
-//   // 切換
-//   btn?.addEventListener('click', () => {
-//     const now = htmlEl.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-//     const next = now === 'dark' ? 'light' : 'dark';
-//     localStorage.setItem(STORAGE_KEY, next);
-//     applyTheme(next);
-//   });
-
-//   // 跟隨系統偏好變化（如果使用者沒手動選過）
-//   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
-//     if(!localStorage.getItem(STORAGE_KEY)){
-//       applyTheme(e.matches ? 'dark' : 'light');
-//     }
-//   });
-// })();
 
 
 

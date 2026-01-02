@@ -51,6 +51,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['title'])) {
     $mindmap_json = $_POST['mindmap_json'] ?? '';
     $flowchart_json = $_POST['flowchart_json'] ?? '';
     $code_lines_raw = $_POST['code_lines'] ?? '[]'; // 由 hidden 欄位傳入 JSON
+    $flow_steps_json = $_POST['flow_steps_json'] ?? null;
+
 
     // ✅ 處理程式碼 JSON
     $code_lines_arr = json_decode($code_lines_raw, true);
@@ -72,12 +74,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['title'])) {
 
         // 寫入資料庫
         $stmt = $conn->prepare("
-            INSERT INTO questions 
-            (title, chapter, difficulty, description, test_cases, mindmap_json, flowchart_json, created_at, code_lines, guid)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)
+          INSERT INTO questions
+          (title, chapter, difficulty, description, test_cases,
+          mindmap_json, flowchart_json, flow_steps_json,
+          created_at, code_lines, guid)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)
         ");
         $stmt->bind_param(
-            "sisssssss",
+            "sissssssss",
             $title,
             $chapter,
             $difficulty,
@@ -85,6 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['title'])) {
             $test_cases_json,
             $mindmap_json,
             $flowchart_json,
+            $flow_steps_json,
             $code_lines,
             $guid
         );
@@ -111,6 +116,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['title'])) {
 <!-- flowchart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/raphael/2.3.0/raphael.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/flowchart/1.18.0/flowchart.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+
 
 <link rel="stylesheet" href="anime-yellow-theme.css">
 
@@ -155,6 +162,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['title'])) {
       <button type="button" class="btn btn-info" id="btnGenerateVisuals">② 生成心智圖與流程圖</button>
     </div>
 
+    <div class="d-flex flex-wrap gap-2 mb-2">
+      <button type="button" class="btn btn-warning" id="btnGenerateFlowSteps">
+        ③ 生成流程順序（白話拖曳）
+      </button>
+    </div>
+
+
     <div id="loadingSpinner" class="text-primary mt-2" style="display:none;">
       <div class="spinner-border spinner-border-sm" role="status"></div>
       <span> 正在生成中…</span>
@@ -194,6 +208,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['title'])) {
           <label class="form-label">題目描述</label>
           <textarea name="description" id="descInput" class="form-control" rows="3"></textarea>
         </div>
+
+        <!-- 前一階段：白話流程順序 -->
+        <div class="mb-3">
+          <label class="form-label fw-bold">
+            🧩 教師設定：流程順序（白話流程標準答案）
+          </label>
+
+          <div class="text-muted small mb-2">
+            下列流程步驟將作為學生「拖曳排序練習」的正確答案。
+            教師可自行新增、刪除或編輯流程內容。
+          </div>
+
+          <!-- ✅ checkbox 只負責開關 -->
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" id="enableFlowPre" checked>
+            <label class="form-check-label" for="enableFlowPre">
+              顯示流程步驟編輯區
+            </label>
+          </div>
+
+          <!-- ✅ 編輯區 -->
+          <div class="alert alert-light border small mb-2">
+            ✏️ 教師可調整流程步驟文字與順序
+          </div>
+
+          <div id="flowStepsContainer">
+            <!-- JS 動態插入 .flow-step-row -->
+          </div>
+
+          <button type="button"
+                  class="btn btn-sm btn-outline-success mt-2"
+                  id="addFlowStepBtn">
+            ➕ 新增流程步驟
+          </button>
+
+          <input type="hidden" name="flow_steps_json" id="flow_steps_json_input">
+            </div>
+
+
 
         <!-- 測資表格 -->
         <div class="mb-3">
@@ -259,6 +312,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['title'])) {
 </div>
 
 <script>
+// ===== DOM 物件（一定要最先）=====
+const enableFlowPre      = document.getElementById("enableFlowPre");
+const flowStepsContainer = document.getElementById("flowStepsContainer");
+const addFlowStepBtn     = document.getElementById("addFlowStepBtn");
+const flowStepsInput     = document.getElementById("flow_steps_json_input");
+
+
+// 初始狀態
+function syncFlowEditor() {
+  const on = enableFlowPre.checked;
+
+  flowStepsContainer.style.display = on ? "block" : "none";
+  addFlowStepBtn.style.display     = on ? "inline-block" : "none";
+
+  if (on) {
+    initFlowSortable();
+  } else {
+    flowStepsInput.value = "";
+  }
+}
+
+
+let flowSortable = null;
+
+function initFlowSortable() {
+  if (!flowSortable) {
+    flowSortable = Sortable.create(flowStepsContainer, {
+      animation: 150,
+      handle: ".text-secondary",
+    });
+  }
+}
+
+// ===== 建立一筆流程步驟 =====
+function addFlowStep(text = "") {
+  const div = document.createElement("div");
+  div.className =
+    "flow-step-row border rounded p-2 mb-2 d-flex align-items-center gap-2";
+
+  div.innerHTML = `
+    <span class="text-secondary" style="cursor:grab;">☰</span>
+
+    <input type="text"
+           class="form-control form-control-sm flow-step-text"
+           value="${text}"
+           placeholder="請輸入流程步驟描述">
+
+    <button type="button"
+            class="btn btn-sm btn-outline-danger">刪除</button>
+  `;
+
+  // 刪除
+  div.querySelector("button").onclick = () => {
+    div.remove();
+  };
+
+  flowStepsContainer.appendChild(div);
+}
+
+addFlowStepBtn.addEventListener("click", () => addFlowStep());
+
+
+enableFlowPre.addEventListener("change", syncFlowEditor);
+syncFlowEditor(); // 頁面載入時執行
+
+
 // ========= 測資增刪 =========
 function addTestcaseRow(inputVal = "", outputVal = "") {
   const tbody = document.querySelector("#testcaseTable tbody");
@@ -487,6 +606,55 @@ document.getElementById("btnGenerateVisuals").addEventListener("click", () => {
     });
 });
 
+// ========= ③ AI 生成流程順序（白話拖曳） =========
+document
+  .getElementById("btnGenerateFlowSteps")
+  .addEventListener("click", () => {
+
+    const description = document.getElementById("descInput").value.trim();
+    const codeText    = document.getElementById("codeLinesInput").value.trim();
+
+    if (!description || !codeText) {
+      alert("⚠️ 請先填寫題目描述與標準解答程式碼！");
+      return;
+    }
+
+    fetch("generate_flow_steps.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        description,
+        code_lines: JSON.stringify(codeText.split("\n"))
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.error) {
+        alert("❌ " + data.error);
+        return;
+      }
+
+      // 啟用流程編輯區
+      enableFlowPre.checked = true;
+      syncFlowEditor();
+
+      // 清空舊流程
+      flowStepsContainer.innerHTML = "";
+
+      // flow_steps 為「白話字串陣列」
+      (data.flow_steps || []).forEach(text => {
+        addFlowStep(text);
+      });
+
+      alert("✅ 已成功生成流程順序（可拖曳、可編輯）");
+    })
+    .catch(err => {
+      console.error(err);
+      alert("⚠️ 伺服器錯誤，請查看 console");
+    });
+  });
+
+
 // ========= 表單送出：組合測資 / 程式碼 =========
 document.getElementById("questionForm").addEventListener("submit", function(e) {
   // 測資
@@ -508,10 +676,33 @@ document.getElementById("questionForm").addEventListener("submit", function(e) {
   document.getElementById("code_lines_hidden").value = JSON.stringify(codeLines, null, 2);
 
   if (testCases.length < 2) {
-    e.preventDefault();
-    alert("⚠️ 請至少新增兩組測資！");
+      e.preventDefault();
+      alert("⚠️ 請至少新增兩組測資！");
+    }
+
+    // ===== 組 flow_steps_json =====
+    if (enableFlowPre.checked) {
+    const steps = [];
+    const rows = flowStepsContainer.querySelectorAll(".flow-step-row");
+
+    rows.forEach(row => {
+      const text = row.querySelector(".flow-step-text").value.trim();
+      if (text) steps.push(text);
+    });
+
+    if (steps.length < 2) {
+      e.preventDefault();
+      alert("⚠️ 流程順序至少需要兩個步驟！");
+      return;
+    }
+
+    flowStepsInput.value = JSON.stringify(steps, null, 2);
+  } else {
+    flowStepsInput.value = "";
   }
 });
+
+
 </script>
 </body>
 </html>
