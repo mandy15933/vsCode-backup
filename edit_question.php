@@ -40,6 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['title'])) {
     $code_lines_raw = $_POST['code_lines'] ?? '';
     $code_lines_arr = preg_split('/\r\n|\r|\n/', trim($code_lines_raw));
     $code_lines = json_encode($code_lines_arr, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    $flow_steps_json = $_POST['flow_steps_json'] ?? '';
 
 
     $test_cases_arr = json_decode($test_cases, true);
@@ -48,11 +49,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['title'])) {
     } else {
         $stmt = $conn->prepare("
             UPDATE questions
-            SET title=?, chapter=?, difficulty=?, description=?, test_cases=?, mindmap_json=?, flowchart_json=?, updated_at=NOW(), code_lines=?
+            SET title=?, chapter=?, difficulty=?, description=?, test_cases=?, mindmap_json=?, flowchart_json=?, updated_at=NOW(), code_lines=?,flow_steps_json=?
             WHERE id=?
         ");
-        $stmt->bind_param("sissssssi",
-            $title, $chapter, $difficulty, $description, $test_cases, $mindmap_json, $flowchart_json, $code_lines, $questionId
+        $stmt->bind_param("sisssssssi",
+            $title, $chapter, $difficulty, $description, $test_cases, $mindmap_json, $flowchart_json, $code_lines,$flow_steps_json, $questionId
         );
 
         $stmt->execute();
@@ -80,6 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['title'])) {
 <!-- flowchart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/raphael/2.3.0/raphael.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/flowchart/1.18.0/flowchart.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 
 <style>
 body { background:#f8f9fa; }
@@ -185,6 +187,31 @@ body { background:#f8f9fa; }
               <button type="button" class="btn btn-sm btn-outline-success" onclick="addTestcaseRow()">➕ 新增一組</button>
               <!-- 隱藏的 JSON 欄位，實際送出表單用 -->
               <input type="hidden" name="test_cases" id="test_cases_input" value="<?=htmlspecialchars($question['test_cases'])?>">
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-bold">
+                🧩 流程順序（白話流程標準答案）
+              </label>
+
+              <div class="text-muted small mb-2">
+                作為學生拖曳排序練習的正確答案，可新增、編輯、調整順序
+              </div>
+
+              <div id="flowStepsContainer"></div>
+
+              <div class="d-flex gap-2 mt-2">
+                <button type="button" class="btn btn-sm btn-outline-success" id="addFlowStepBtn">
+                  ➕ 新增流程步驟
+                </button>
+
+                <button type="button" class="btn btn-sm btn-outline-warning" id="btnGenerateFlowSteps">
+                  🤖 AI 重新生成流程順序
+                </button>
+              </div>
+
+              <input type="hidden" name="flow_steps_json" id="flow_steps_json_input"
+                    value="<?= htmlspecialchars($question['flow_steps_json'] ?? '') ?>">
             </div>
 
 
@@ -687,7 +714,6 @@ function showToast(msg, type="primary"){
 }
 
 // === 🧠 AI 生成心智圖 ===
-// === 🧠 AI 生成心智圖 ===
 document.getElementById('generateMindmap').addEventListener('click', async () => {
   const description = document.getElementById('descInput').value.trim();
   const test_cases = document.getElementById('test_cases_input').value.trim();
@@ -812,6 +838,104 @@ document.getElementById('generateFlowchart').addEventListener('click', async () 
     btn.disabled = false;
     btn.innerHTML = original;
     flowchartArea.classList.remove('loading');
+  }
+});
+
+// ===== 白話流程順序（編輯頁）=====
+const flowStepsContainer = document.getElementById("flowStepsContainer");
+const addFlowStepBtn = document.getElementById("addFlowStepBtn");
+const flowStepsInput = document.getElementById("flow_steps_json_input");
+
+let flowSortable = null;
+
+// 初始化 Sortable
+function initFlowSortable(){
+  if(!flowSortable){
+    flowSortable = Sortable.create(flowStepsContainer, {
+      animation: 150,
+      handle: ".drag-handle",
+    });
+  }
+}
+
+// 建立一筆流程步驟
+function addFlowStep(text = ""){
+  const div = document.createElement("div");
+  div.className = "flow-step-row border rounded p-2 mb-2 d-flex align-items-center gap-2";
+
+  div.innerHTML = `
+    <span class="drag-handle text-secondary" style="cursor:grab;">☰</span>
+    <input type="text"
+           class="form-control form-control-sm flow-step-text"
+           value="${text}"
+           placeholder="請輸入流程步驟描述">
+    <button type="button" class="btn btn-sm btn-outline-danger">刪除</button>
+  `;
+
+  div.querySelector("button").onclick = () => div.remove();
+  flowStepsContainer.appendChild(div);
+}
+
+addFlowStepBtn.addEventListener("click", () => addFlowStep());
+
+// 載入既有流程（DB → UI）
+window.addEventListener("DOMContentLoaded", () => {
+  initFlowSortable();
+
+  try {
+    const raw = flowStepsInput.value;
+    const steps = JSON.parse(raw || "[]");
+    steps.forEach(s => addFlowStep(s));
+  } catch(e){
+    console.warn("flow_steps_json 解析失敗");
+  }
+});
+
+document.querySelector("form").addEventListener("submit", (e)=>{
+  const steps = [];
+  document.querySelectorAll(".flow-step-text").forEach(input=>{
+    const text = input.value.trim();
+    if(text) steps.push(text);
+  });
+
+  if(steps.length < 2){
+    e.preventDefault();
+    showToast("⚠️ 流程順序至少需要兩個步驟", "warning");
+    return;
+  }
+
+  flowStepsInput.value = JSON.stringify(steps, null, 2);
+});
+
+// ========= 🤖 AI 生成白話流程順序（編輯頁） =========
+document.getElementById("btnGenerateFlowSteps").addEventListener("click", async () => {
+  const description = document.getElementById("descInput").value.trim();
+  const code = document.getElementById("codeLinesInput").value.trim();
+
+  if(!description || !code){
+    showToast("⚠️ 請先填寫題目描述與標準解答程式碼", "warning");
+    return;
+  }
+
+  try{
+    const res = await fetch("generate_flow_steps.php", {
+      method:"POST",
+      headers:{ "Content-Type":"application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        description,
+        code_lines: JSON.stringify(code.split("\n"))
+      })
+    });
+
+    const data = await res.json();
+    if(data.error) throw new Error(data.error);
+
+    flowStepsContainer.innerHTML = "";
+    (data.flow_steps || []).forEach(s => addFlowStep(s));
+
+    showToast("✅ 白話流程順序已重新生成", "success");
+  }catch(e){
+    showToast("❌ 生成失敗：" + e.message, "danger");
   }
 });
 

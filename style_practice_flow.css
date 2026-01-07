@@ -1,0 +1,724 @@
+/* 🎨 Python 拖曳練習頁面主題（與平台一致的動漫暖色風格） */
+body {
+  font-family: "Chiron GoRound TC", "Noto Sans TC", sans-serif;
+  background: linear-gradient(180deg, #fffdf4 0%, #fff8e1 100%);
+  color: #4e342e;
+  line-height: 1.7;
+}
+
+/* 🧱 卡片樣式 */
+.card {
+  border-radius: 18px;
+  overflow: hidden;
+  border: 2.5px solid #ffecb3;
+  background: #fffef7;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+  transition: box-shadow 0.3s ease;
+}
+.card:hover {
+  box-shadow: 0 6px 16px rgba(255, 213, 79, 0.35);
+}
+.card-header {
+  font-weight: 700;
+  background: linear-gradient(to right, #ffecb3, #fff9c4);
+  border-bottom: 2px solid #ffe082;
+  color: #3e2723;
+}
+
+/* 💻 拖曳程式碼區域 */
+
+
+.code-line {
+  background-color: #fff;
+  font-family: "JetBrains Mono", "Courier New", monospace;
+  font-size: 15px;
+  border: 1.5px solid #f5f5f5;
+  margin-bottom: 6px;
+  border-radius: 8px;
+  padding: 6px 12px;
+  transition: all 0.2s ease;
+  overflow: visible;
+}
+.code-line:hover {
+  background-color: #fffbe5;
+  cursor: grab;
+  transform: translateY(-1px);
+}
+.code-line.selected {
+  background-color: #fff59d !important;
+  border: 2px solid #fdd835 !important;
+  box-shadow: 0 0 12px rgba(255, 235, 59, 0.6);
+}
+.code-line.highlight {
+  background-color: #c8e6c9 !important;
+  border: 2px solid #388e3c !important;
+  box-shadow: 0 0 14px rgba(76, 175, 80, 0.5);
+}
+.code-line.highlight-temp {
+  background-color: #fff9c4 !important;
+  border: 2px solid #ffeb3b !important;
+}
+
+/* ✨ 縮排層級 */
+.code-line[data-indent="1"] { margin-left: 60px; }
+.code-line[data-indent="2"] { margin-left: 120px; }
+.code-line[data-indent="3"] { margin-left: 180px; }
+.code-line[data-indent="4"] { margin-left: 240px; }
+.code-line[data-indent="5"] { margin-left: 300px; }
+
+/* 🧩 按鈕（統一動漫立體風） */
+.btn-cute {
+  border: none;
+  border-radius: 12px;
+  padding: 8px 18px;
+  font-weight: 600;
+  transition: 0.2s;
+  background: linear-gradient(to top, #ffca28, #fff59d);
+  color: #3e2723;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.6), 0 5px 0 #ffb300;
+}
+.btn-cute:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(255, 193, 7, 0.4);
+}
+.btn-cute:active {
+  transform: scale(0.96);
+}
+
+/* ✅ 提交按鈕（綠色成功感） */
+.btn-submit {
+  background: linear-gradient(to top, #66bb6a, #c8e6c9);
+  border: 3px solid #57a05b;
+  color: #1b5e20;
+  box-shadow: 0 5px 0 #57a05b, 0 8px 14px rgba(0, 0, 0, 0.15);
+}
+.btn-submit:hover {
+  background: linear-gradient(to top, #81c784, #e8f5e9);
+  transform: translateY(-3px);
+  animation: pulseGreen 0.4s ease;
+}
+
+/* 🔸 上下題導覽 */
+.btn-nav {
+  background: linear-gradient(to top, #ffb300, #ffe082);
+  border: 3px solid #f9a825;
+  color: #3e2723;
+  box-shadow: 0 4px 0 #f57f17;
+}
+.btn-nav:hover {
+  background: linear-gradient(to top, #ffd54f, #fff59d);
+  transform: translateY(-3px);
+}
+
+/* 🌐 Tabs 樣式 */
+.nav-tabs .nav-link {
+  color: #6d4c41;
+  border: none;
+  border-bottom: 3px solid transparent;
+  font-weight: 600;
+  transition: all 0.25s;
+}
+.nav-tabs .nav-link.active {
+  background-color: #fffde7 !important;
+  border-color: #ffb300 !important;
+  color: #3e2723 !important;
+}
+.nav-tabs .nav-link:hover {
+  color: #000;
+}
+
+/* 📚 提示區域 */
+#mindmapArea,
+#flowchartArea {
+  background: #fffef5;
+  border-radius: 10px;
+  padding: 8px;
+  border: 1.5px solid #ffecb3;
+}
+
+/* 📈 進度條 */
+.progress {
+  border-radius: 10px;
+  background-color: #fffde7;
+  border: 2px solid #ffecb3;
+}
+.progress-bar.bg-warning {
+  background-color: #ffca28 !important;
+}
+.progress-bar.bg-success {
+  background-color: #81c784 !important;
+}
+
+/* 💬 SweetAlert 美化 */
+.swal2-popup {
+  font-family: "Chiron GoRound TC", "Noto Sans TC", sans-serif;
+  border-radius: 16px;
+}
+
+/* 🪶 心智圖節點 */
+jmnode {
+  font-family: "Noto Sans TC", sans-serif !important;
+  border-radius: 8px !important;
+  padding: 6px 10px !important;
+  background: #fffde7 !important;
+  border: 1.5px solid #ffe082 !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* 🌙 深色模式支援 */
+html[data-theme="dark"] body {
+  background: linear-gradient(180deg, #1e1e1e 0%, #2c2c2c 100%);
+  color: #e0e0e0;
+}
+html[data-theme="dark"] .card {
+  background: #2e2e2e;
+  border-color: #555;
+}
+html[data-theme="dark"] #codeList {
+  background: #1c1c1c;
+  border-color: #444;
+}
+html[data-theme="dark"] .code-line {
+  background: #222;
+  color: #e5e5e5;
+  border-color: #333;
+}
+html[data-theme="dark"] .code-line.selected {
+  background-color: #3e3e2e !important;
+  border-color: #fbc02d !important;
+}
+html[data-theme="dark"] .btn-cute {
+  background: linear-gradient(to top, #fbc02d, #ffd54f);
+  color: #212121;
+}
+html[data-theme="dark"] .btn-submit {
+  background: linear-gradient(to top, #43a047, #81c784);
+  border-color: #388e3c;
+  color: #e8f5e9;
+}
+
+/* ✨ 柔光按鈕動畫 */
+@keyframes pulseGreen {
+  0% { box-shadow: 0 0 0 rgba(102, 187, 106, 0.3); }
+  50% { box-shadow: 0 0 12px rgba(102, 187, 106, 0.8); }
+  100% { box-shadow: 0 0 0 rgba(102, 187, 106, 0.3); }
+}
+
+/* 🧽 統一框線顏色（去除黑邊） */
+.card,
+.card-header,
+.card-body,
+#codeList,
+#flowchartArea,
+#mindmapArea {
+  border-color: #ffe082 !important;
+  box-shadow: none !important;
+}
+
+/* 移除任何深色邊框樣式 */
+.border,
+.border-dark,
+.border-secondary {
+  border-color: #ffe082 !important;
+}
+
+/* 移除 focus 黑框 */
+*:focus {
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(255, 224, 130, 0.6) !important; /* 柔黃色聚焦效果 */
+}
+
+/* 調整 hover 時框線不要變黑 */
+.card:hover,
+#codeList:hover {
+  border-color: #ffeb3b !important;
+}
+
+/* 🧠 修正心智圖節點可讀性 */
+jmnode {
+  color: #3e2723 !important; /* 深咖啡文字，與主題一致 */
+  background: #fffde7 !important;
+  border: 2px solid #ffecb3 !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08) !important;
+  font-weight: 600 !important;
+}
+
+/* 滑鼠移過節點時加強可視性 */
+jmnode:hover {
+  background: #fff9c4 !important;
+  border-color: #ffd54f !important;
+  color: #000 !important;
+  box-shadow: 0 0 10px rgba(255, 213, 79, 0.4) !important;
+  transition: all 0.25s ease;
+}
+
+/* 📱 手機響應式調整 */
+
+#mindmapArea {
+        overflow: auto;
+        touch-action: pan-y;
+    }
+    #flowchartWrapper {
+        overflow-x: auto;
+        overflow-y: hidden;
+        max-width: 100%;
+    }
+    .mindmap-box {
+        width: 100%;
+        height: 400px;
+        border: 1px solid #ddd;
+    }
+
+    /* 📱手機自動縮短高度 */
+    @media (max-width: 576px) {
+        .mindmap-box {
+            height: 260px;
+        }
+    }
+    #codeList pre {
+        white-space: pre-wrap !important;
+        word-break: break-word !important;
+    }
+    @media (max-width: 576px) {
+        .btn-cute,
+        .btn-nav {
+            padding: 6px 10px !important;
+            font-size: 14px !important;
+        }
+    }
+    #codeList .code-line {
+        user-select: none !important;
+        -webkit-user-select: none !important;
+        touch-action: none;
+    }
+
+    @media (max-width: 576px) {
+    #codeList pre code {
+        font-size: 16px;
+    }
+}
+
+/* === 桌機程式碼字體加大 === */
+.code-line {
+  font-size: 20px;
+}
+
+#codeList pre code {
+  font-size: 20px;
+  line-height: 1.55;
+}
+
+/* === 讓程式碼外框正常顯示 === */
+#codeList {
+  min-height: 280px;
+  border: 2px dashed #ffd54f;
+  border-radius: 12px;
+  padding: 10px;
+  background: #fffef3;
+}
+
+/* === 手機版自動縮小，避免過大 === */
+@media (max-width: 576px) {
+  #codeList .code-line {
+      font-size: 15px !important;
+      padding: 6px 10px !important;
+  }
+
+  #codeList pre code {
+      font-size: 15px !important;
+      line-height: 1.4 !important;
+  }
+}
+
+/* === 🧩 全站字級基準 === */
+body {
+    font-size: 16px;
+}
+
+/* === 📝 標題區統一 === */
+.card-header h4,
+.card-header h5,
+.card-header h3 {
+    font-size: 20px !important;
+    font-weight: 700;
+}
+
+h4, h5 {
+    font-size: 20px;
+}
+
+/* === 📄 題目描述文字 === */
+.card-body p,
+.card-body .fs-5 {
+    font-size: 17px !important;
+}
+
+/* === 💻 程式碼字體統一（桌機） === */
+.code-line {
+    font-size: 17px !important;
+}
+
+#codeList pre code {
+    font-size: 17px !important;
+    line-height: 1.55;
+}
+
+/* 手機版縮小一點 */
+@media (max-width: 576px) {
+    .code-line,
+    #codeList pre code {
+        font-size: 15px !important;
+        line-height: 1.4 !important;
+    }
+}
+
+/* === 🧩 按鈕統一 === */
+.btn,
+.btn-cute,
+.btn-nav,
+.btn-submitting {
+    font-size: 15px !important;
+}
+
+/* === 🌐 Tabs 字體 === */
+.nav-tabs .nav-link {
+    font-size: 16px !important;
+}
+
+/* === 🧠 心智圖節點 === */
+jmnode {
+    font-size: 14px !important;
+}
+
+/* === 🔄 流程圖節點（SVG 文字） === */
+#flowchartArea text {
+    font-size: 14px !important;
+}
+
+
+
+
+
+/* 第二步整塊區域跟第一步之間留一點點距離就好 */
+#step2Container {
+    margin-top: 10px !important;
+}
+
+
+
+/* 讓按鈕本身看起來比例正常、確實置中 */
+#showMoreHintBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 24px;
+    border-radius: 10px;
+    font-size: 15px;
+    margin: 12px auto 0;   /* 上方留一點距離，左右自動置中 */
+}
+
+
+/* 按鈕視覺調整：比例端正、靠左 */
+#showMoreHintBtn {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 18px;
+    border-radius: 10px;
+    font-size: 15px;
+    margin-top: 10px !important;
+}
+
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  /* 整頁同一個背景 */
+  background: linear-gradient(180deg, #F6F0F0 0%, #F2E2B1 100%);
+  background-repeat: no-repeat;   /* 不要平鋪重複 */
+  background-attachment: fixed;   /* 捲動時背景固定 */
+  background-size: cover;         /* 讓漸層填滿整個畫面 */
+}
+
+
+/* === AI 提示視覺優化 === */
+.aihint-wrapper {
+    background: #fffdf3;
+    border: 2px solid #f5e6a5;
+    border-radius: 12px;
+    padding: 18px 20px;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.08);
+    font-size: 30px;
+    line-height: 1.6;
+    color: #5a4a00;
+}
+
+
+
+.aihint-wrapper {
+    background: #fffdf3;
+    border: 2px solid #f5e6a5;
+    border-radius: 12px;
+    padding: 16px 18px;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.08);
+    font-size: 25px;
+    line-height: 1.6;
+    color: #5a4a00;
+}
+
+.aihint-wrapper h6 {
+    font-size: 18px;
+    font-weight: 700;
+    margin: 4px 0 8px;
+    color: #c68a00;
+}
+
+.aihint-wrapper pre {
+    background: #fffaf0 !important;
+    border: 1px solid #f0d98c !important;
+    border-radius: 8px;
+    padding: 10px 12px !important;
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+    font-size: 20px !important;
+    margin: 0 0 10px 0 !important;
+}
+
+#showMoreHintBtn {
+    display: inline-block;
+    margin-top: 10px;
+}
+
+
+/* =========================================
+   📐 縮排教學視覺提示（完整穩定版）
+   適用於 Bootstrap / Card / List-group
+   ========================================= */
+
+/* === 確保 code-line 是定位基準 === */
+.code-line {
+    position: relative;
+    overflow: visible !important;
+}
+
+/* ===============================
+   🔴 本行錯誤（紅框）
+   =============================== */
+.code-line.indent-warning::after {
+    content: "";
+    position: absolute;
+    inset: -6px;
+    border: 3px solid #ff5252;
+    border-radius: 10px;
+    box-shadow: 0 0 0 6px rgba(255, 82, 82, 0.35);
+    pointer-events: none;
+    animation: flashRedBox 0.9s ease forwards;
+    z-index: 10;
+}
+
+/* ===============================
+   🔵 上一行參考（藍框）
+   =============================== */
+.code-line.indent-reference::before {
+    content: "";
+    position: absolute;
+    inset: -6px;
+    border: 3px solid #2196f3;
+    border-radius: 10px;
+    box-shadow: 0 0 0 6px rgba(33, 150, 243, 0.35);
+    pointer-events: none;
+    animation: flashBlueBox 0.9s ease forwards;
+    z-index: 9;
+}
+
+/* ===============================
+   🎞️ 動畫（結束後完全隱藏）
+   =============================== */
+@keyframes flashRedBox {
+    0%   { opacity: 0; }
+    25%  { opacity: 1; }
+    75%  { opacity: 1; }
+    100% { opacity: 0; visibility: hidden; }
+}
+
+@keyframes flashBlueBox {
+    0%   { opacity: 0; }
+    25%  { opacity: 1; }
+    75%  { opacity: 1; }
+    100% { opacity: 0; visibility: hidden; }
+}
+
+/* 🚫 避免跟原本 box-shadow 打架 */
+.code-line.indent-warning,
+.code-line.indent-reference {
+    box-shadow: none !important;
+}
+
+
+#flowList {
+    list-style: none;
+    padding: 12px;
+    margin: 0;
+    min-height: 280px;
+    border: 2px dashed #ffd54f;
+    border-radius: 14px;
+    background: #fffef3;
+}
+
+/* === 單一流程步驟 === */
+.flow-step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    background: #ffffff;
+    border-radius: 14px;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+
+    border: 2px solid #ffecb3;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+
+    font-size: 17px;
+    font-weight: 600;
+    color: #4e342e;
+
+    cursor: grab;
+    transition: all 0.18s ease;
+}
+
+/* === 拖曳把手 === */
+.flow-step .drag-handle {
+    font-size: 18px;
+    color: #c68a00;
+    cursor: grab;
+    user-select: none;
+}
+
+/* === Hover 效果 === */
+.flow-step:hover {
+    background: #fff9c4;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(255, 213, 79, 0.35);
+}
+
+/* === 拖曳中 === */
+.flow-step.dragging {
+    opacity: 0.85;
+    background: #fff59d;
+}
+
+/* === 被選取 === */
+.flow-step.selected {
+    border: 3px solid #fdd835;
+    background: #fff59d;
+    box-shadow: 0 0 14px rgba(255, 235, 59, 0.6);
+}
+
+/* === 排序正確（答對動畫可用） === */
+.flow-step.correct {
+    background: #c8e6c9 !important;
+    border-color: #66bb6a !important;
+    box-shadow: 0 0 16px rgba(76, 175, 80, 0.6);
+}
+
+/* === 排序錯誤（錯誤提示用） === */
+.flow-step.wrong {
+    background: #ffebee !important;
+    border-color: #e57373 !important;
+    box-shadow: 0 0 12px rgba(229, 115, 115, 0.5);
+}
+
+/* =========================================================
+   🧠 提示區（與原本樣式一致，僅微調比例）
+   ========================================================= */
+
+#mindmapArea,
+#flowchartArea {
+    background: #fffef5;
+    border-radius: 12px;
+    padding: 10px;
+    border: 2px solid #ffecb3;
+}
+
+/* =========================================================
+   📱 響應式（手機）
+   ========================================================= */
+@media (max-width: 576px) {
+
+    #flowList {
+        padding: 8px;
+    }
+
+    .flow-step {
+        font-size: 15px;
+        padding: 10px 12px;
+    }
+
+    .flow-step .drag-handle {
+        font-size: 16px;
+    }
+}
+
+/* =========================================================
+   🌙 深色模式支援（延續你原本邏輯）
+   ========================================================= */
+html[data-theme="dark"] #flowList {
+    background: #1c1c1c;
+    border-color: #555;
+}
+
+html[data-theme="dark"] .flow-step {
+    background: #2a2a2a;
+    color: #e0e0e0;
+    border-color: #666;
+}
+
+html[data-theme="dark"] .flow-step:hover {
+    background: #333;
+}
+
+/* =========================================================
+   🚫 移除 Bootstrap 黑邊干擾
+   ========================================================= */
+.border,
+.border-dark,
+.border-secondary {
+    border-color: #ffecb3 !important;
+}
+
+/* =========================================================
+   🧠 心智圖節點維持一致（保留）
+   ========================================================= */
+jmnode {
+    font-family: "Noto Sans TC", sans-serif !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    color: #3e2723 !important;
+    background: #fffde7 !important;
+    border: 2px solid #ffecb3 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.08) !important;
+}
+/* ===============================
+   🔄 流程圖 SVG 防誤傷區
+   =============================== */
+
+/* 不要讓全域 box / border 影響 SVG */
+#flowchartArea svg {
+    box-shadow: none !important;
+    border: none !important;
+}
+
+/* flowchart.js 的文字樣式 */
+#flowchartArea svg text {
+    font-family: "Chiron GoRound TC", "Noto Sans TC", sans-serif !important;
+    font-size: 14px !important;
+    fill: #3e2723 !important;
+}
+
+/* 線條顏色穩定 */
+#flowchartArea svg path {
+    stroke: #555 !important;
+}

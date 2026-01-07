@@ -18,8 +18,18 @@ $timeSpent    = (int)($input['time_spent'] ?? 0);
 $code         = $input['code'] ?? '';
 $aiComment    = $input['ai_comment'] ?? null;
 $testGroupId  = isset($input['test_group_id']) ? (int)$input['test_group_id'] : null;
-$answerMode   = $testGroupId ? 'exam' : 'practice';
-$now          = date('Y-m-d H:i:s');
+
+
+$answerModeInput = $input['answer_mode'] ?? 'practice';
+
+
+if ($testGroupId) {
+    $answerMode = 'exam';
+} else {
+    $answerMode = $answerModeInput; // e.g. flow_practice
+}
+
+$now= date('Y-m-d H:i:s');
 
 if (!$questionId) {
     echo json_encode(["success" => false, "message" => "缺少題目 ID"]);

@@ -1,7 +1,13 @@
+
 @font-face {
   font-family: "Chiron GoRound TC";
   src: url("fonts/Chiron_GoRound_TC/ChironGoRoundTC-VariableFont_wght.ttf")
-    format("truetype");
+       format("truetype");
   font-weight: 100 900;
   font-style: normal;
+  font-display: swap;
+}
+
+body {
+  font-family: "Chiron GoRound TC", "Noto Sans TC", sans-serif;
 }
