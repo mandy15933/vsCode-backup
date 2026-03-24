@@ -209,7 +209,7 @@ $stmt->close();
 
 $remaining = (int)($remainRow['remaining'] ?? 0);
 
-
+$showAiHint = false
 
 ?>
 
@@ -362,7 +362,7 @@ $remaining = (int)($remainRow['remaining'] ?? 0);
                     <ul id="codeList" class="list-group mb-3"></ul>
                     <div class="d-flex flex-wrap gap-2">
                         <button id="submitOrder" class="btn  btn-submitting">✅ 提交答案</button>
-                        <?php if (!$isExamMode): ?>
+                        <?php if (!$isExamMode && $showAiHint): ?>
                             <button id="aiHintBtn" class="btn btn-warning">
                                 🤖 AI提示 <span id="aiHintCountLabel" class="text-dark fw-bold"></span>
                             </button>
@@ -412,10 +412,12 @@ $remaining = (int)($remainRow['remaining'] ?? 0);
                                 <button class="nav-link text-dark" id="flowchart-tab" data-bs-toggle="tab"
                                     data-bs-target="#flowchartPane" type="button" role="tab">🔄 流程圖</button>
                             </li>
-                            <li class="nav-item">
-                                <button class="nav-link text-dark" id="aihint-tab" data-bs-toggle="tab"
-                                    data-bs-target="#aihintPane" type="button" role="tab">💬 AI提示</button>
-                            </li>
+                            <?php if ($showAiHint): ?>
+                                <li class="nav-item">
+                                    <button class="nav-link text-dark" id="aihint-tab" data-bs-toggle="tab"
+                                        data-bs-target="#aihintPane" type="button" role="tab">💬 AI提示</button>
+                                </li>
+                            <?php endif; ?>
                         <?php endif; ?>
                     </ul>
 
