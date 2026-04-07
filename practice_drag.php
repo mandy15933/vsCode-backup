@@ -248,15 +248,16 @@ $showAiHint = false
     
     <script src="feedback_modal.js?v=1.0"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
-    <link rel="stylesheet" href="anime-yellow-theme.css?v=3.0">
-    <link rel="stylesheet" href="style_practice_drag.css?v=3.0">
+    <!-- <link rel="stylesheet" href="anime-yellow-theme.css?v=3.0">
+    <link rel="stylesheet" href="style_practice_drag.css?v=3.0"> -->
+    <link rel="stylesheet" href="practice_drag_merged.css?v=3.0">
     
 
 </head>
 <body>
 <?php include 'Navbar.php'; ?>
 
-<div class="container mt-3">
+<div class="container-fluid mt-3">
     <div class="card shadow-sm mb-4 border-warning">
         <?php if ($testGroupId): ?>
         <?php endif; ?>
@@ -425,11 +426,19 @@ $showAiHint = false
                         <!-- 測資 -->
                         <div class="tab-pane fade show active" id="testPane" role="tabpanel">
                             <?php foreach ($testCases as $i=>$tc): ?>
-                            <div class="border p-2 mb-2 rounded bg-light">
-                                <b>測資 <?= $i+1 ?>：</b><br>
-                                <span class="text-muted">輸入：</span><pre><?= htmlspecialchars($tc['input']) ?></pre>
-                                <span class="text-muted">預期輸出：</span><pre><?= htmlspecialchars($tc['output']) ?></pre>
-                            </div>
+                                <div class="testcase-card">
+                                    <div class="testcase-title">🧪 測資 <?= $i+1 ?></div>
+
+                                    <div class="testcase-block input">
+                                        <div class="label">📥 輸入</div>
+                                        <pre><?= htmlspecialchars($tc['input']) ?></pre>
+                                    </div>
+
+                                    <div class="testcase-block output">
+                                        <div class="label">📤 預期輸出</div>
+                                        <pre><?= htmlspecialchars($tc['output']) ?></pre>
+                                    </div>
+                                </div>
                             <?php endforeach; ?>
                         </div>
                         <!-- 心智圖 -->

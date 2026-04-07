@@ -1,0 +1,698 @@
+/* =========================================
+   practice_drag_merged.css
+   僅保留 practice_drag.php 目前需要的樣式
+   ========================================= */
+
+/* ✨ 字體 */
+@font-face {
+  font-family: "Chiron GoRound TC";
+  src: url("fonts/Chiron_GoRound_TC/ChironGoRoundTC-VariableFont_wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* =========================================
+   基礎頁面
+   ========================================= */
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: "Chiron GoRound TC", "Noto Sans TC", sans-serif;
+  background: linear-gradient(180deg, #F6F0F0 0%, #F2E2B1 100%);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  background-size: cover;
+  color: #4e342e;
+  line-height: 1.7;
+  text-shadow: 0.5px 0.5px #F2E2B1;
+  font-size: 16px;
+}
+
+/* =========================================
+   Navbar
+   ========================================= */
+.navbar {
+  background: linear-gradient(to right, #BDB395, #D5C7A3);
+  border-bottom: 3px solid #F2E2B1;
+}
+
+.navbar-brand {
+  text-shadow: 1px 1px 0 #F2E2B1;
+}
+
+/* =========================================
+   卡片 / 共用區塊
+   ========================================= */
+.card {
+  border-radius: 18px;
+  overflow: hidden;
+  border: 2.5px solid #ffe082 !important;
+  background: #fffef7;
+  box-shadow: none !important;
+  transition: 0.3s ease;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(189, 179, 149, 0.25);
+  border-color: #ffeb3b !important;
+}
+
+.card-header {
+  font-weight: 700;
+  background: linear-gradient(to right, #ffecb3, #fff9c4);
+  border-bottom: 2px solid #ffe082 !important;
+  color: #3e2723;
+}
+
+.card-body {
+  border-color: #ffe082 !important;
+}
+
+.card-header h3,
+.card-header h4,
+.card-header h5,
+h4,
+h5 {
+  font-size: 20px !important;
+  font-weight: 700;
+}
+
+.card-body p,
+.card-body .fs-5 {
+  font-size: 17px !important;
+}
+
+/* 移除 Bootstrap 深色框線 */
+.border,
+.border-dark,
+.border-secondary {
+  border-color: #ffe082 !important;
+}
+
+/* =========================================
+   進度條
+   ========================================= */
+.progress {
+  border-radius: 10px;
+  background-color: #fffde7;
+  border: 2px solid #ffecb3;
+}
+
+.progress-bar {
+  color: #fff;
+}
+
+.progress-bar.bg-warning {
+  background-color: #ffca28 !important;
+}
+
+.progress-bar.bg-success {
+  background-color: #81c784 !important;
+}
+
+/* =========================================
+   Tabs
+   ========================================= */
+.nav-tabs .nav-link {
+  color: #6d4c41;
+  border: none;
+  border-bottom: 3px solid transparent;
+  font-weight: 600;
+  font-size: 16px !important;
+  transition: all 0.25s;
+}
+
+.nav-tabs .nav-link.active {
+  background-color: #fffde7 !important;
+  border-color: #ffb300 !important;
+  color: #3e2723 !important;
+}
+
+.nav-tabs .nav-link:hover {
+  color: #000;
+}
+
+/* =========================================
+   按鈕
+   ========================================= */
+.btn,
+.btn-cute,
+.btn-nav,
+.btn-submitting {
+  font-size: 15px !important;
+}
+
+.btn-cute {
+  border: none;
+  border-radius: 12px;
+  padding: 8px 18px;
+  font-weight: 600;
+  transition: 0.2s;
+  background: linear-gradient(to top, #ffca28, #fff59d);
+  color: #3e2723;
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.6),
+    0 5px 0 #ffb300;
+}
+
+.btn-cute:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(255, 193, 7, 0.4);
+}
+
+.btn-cute:active {
+  transform: scale(0.96);
+}
+
+.btn-nav {
+  background: linear-gradient(to top, #ffb300, #ffe082);
+  border: 3px solid #f9a825;
+  color: #3e2723;
+  box-shadow: 0 4px 0 #f57f17;
+}
+
+.btn-nav:hover {
+  background: linear-gradient(to top, #ffd54f, #fff59d);
+  transform: translateY(-3px);
+}
+
+.btn-warning {
+  background: linear-gradient(to top, #D5C7A3, #F2E2B1);
+  border: 3px solid #BDB395;
+  color: #4e4032;
+  font-weight: bold;
+  border-radius: 14px;
+  box-shadow:
+    inset 0 2px #fff,
+    0 6px 0 #BDB395,
+    0 10px 18px rgba(0,0,0,0.25);
+  transition: 0.2s;
+}
+
+.btn-warning:hover {
+  background: linear-gradient(to top, #F2E2B1, #FFF7DE);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 14px rgba(213, 199, 163, 0.6);
+}
+
+.btn-warning:active {
+  top: 2px;
+  background: linear-gradient(to top, #BDB395, #D5C7A3);
+}
+
+.btn-submitting {
+  background: linear-gradient(to top, #9CC49C, #CFE5CF);
+  border: 3px solid #7FAF80;
+  color: #1b5e20;
+  border-radius: 14px;
+  box-shadow:
+    inset 0 2px #fff,
+    0 6px 0 #7FAF80,
+    0 10px 18px rgba(0,0,0,0.25);
+  transition: 0.2s;
+}
+
+.btn-submitting:hover {
+  background: linear-gradient(to top, #BFE0BF, #E8F4E8);
+  transform: translateY(-3px);
+}
+
+.btn-secondary {
+  background: linear-gradient(to top, #E6E0D8, #F6F0F0);
+  border: 2.5px solid #BDB395;
+  color: #4e4032;
+  border-radius: 12px;
+  box-shadow:
+    inset 0 2px #fff,
+    0 5px 0 #A79B88,
+    0 10px 18px rgba(0,0,0,0.15);
+}
+
+.btn-secondary:hover {
+  background: linear-gradient(to top, #F2E8DB, #FFF9F4);
+  transform: translateY(-3px);
+}
+
+/* =========================================
+   拖曳程式碼區
+   ========================================= */
+#codeList {
+  min-height: 280px;
+  border: 2px dashed #ffd54f;
+  border-radius: 12px;
+  padding: 10px;
+  background: #fffef3;
+  border-color: #ffe082 !important;
+  box-shadow: none !important;
+}
+
+#codeList:hover {
+  border-color: #ffeb3b !important;
+}
+
+#codeList pre {
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  margin: 0;
+}
+
+#codeList .code-line {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  touch-action: none;
+}
+
+.code-line {
+  position: relative;
+  overflow: visible !important;
+  background-color: #fff;
+  font-family: "JetBrains Mono", "Courier New", monospace;
+  font-size: 17px !important;
+  border: 1.5px solid #f5f5f5;
+  margin-bottom: 6px;
+  border-radius: 8px;
+  padding: 6px 12px;
+  transition: all 0.2s ease;
+}
+
+#codeList pre code {
+  font-size: 17px !important;
+  line-height: 1.55;
+}
+
+.code-line:hover {
+  background-color: #fffbe5;
+  cursor: grab;
+  transform: translateY(-1px);
+}
+
+.code-line.selected {
+  background-color: #fff59d !important;
+  border: 2px solid #fdd835 !important;
+  box-shadow: 0 0 12px rgba(255, 235, 59, 0.6);
+}
+
+.code-line.highlight {
+  background-color: #c8e6c9 !important;
+  border: 2px solid #388e3c !important;
+  box-shadow: 0 0 14px rgba(76, 175, 80, 0.5);
+}
+
+.code-line.highlight-temp {
+  background-color: #fff9c4 !important;
+  border: 2px solid #ffeb3b !important;
+}
+
+/* 縮排層級 */
+.code-line[data-indent="1"] { margin-left: 60px; }
+.code-line[data-indent="2"] { margin-left: 120px; }
+.code-line[data-indent="3"] { margin-left: 180px; }
+.code-line[data-indent="4"] { margin-left: 240px; }
+.code-line[data-indent="5"] { margin-left: 300px; }
+
+/* =========================================
+   心智圖 / 流程圖 / 提示區
+   ========================================= */
+#mindmapArea,
+#flowchartArea {
+  background: #fffef5;
+  border-radius: 10px;
+  padding: 8px;
+  border: 1.5px solid #ffecb3;
+}
+
+#flowchartWrapper {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+}
+
+.mindmap-box {
+  width: 100%;
+  height: 400px;
+  border: 1px solid #ddd;
+}
+
+#mindmapArea {
+  overflow: auto;
+  touch-action: pan-y;
+}
+
+/* 心智圖節點 */
+jmnode {
+  font-family: "Noto Sans TC", sans-serif !important;
+  font-size: 14px !important;
+  color: #3e2723 !important;
+  border-radius: 8px !important;
+  padding: 6px 10px !important;
+  background: #fffde7 !important;
+  border: 2px solid #ffecb3 !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08) !important;
+  font-weight: 600 !important;
+}
+
+jmnode:hover {
+  background: #fff9c4 !important;
+  border-color: #ffd54f !important;
+  color: #000 !important;
+  box-shadow: 0 0 10px rgba(255, 213, 79, 0.4) !important;
+  transition: all 0.25s ease;
+}
+
+/* 流程圖文字 */
+#flowchartArea text {
+  font-size: 14px !important;
+}
+
+/* =========================================
+   AI 提示區
+   ========================================= */
+#aiHintArea {
+  background: #FFFDF9;
+  border: 2px solid #D5C7A3;
+  border-radius: 14px;
+  padding: 1rem;
+  box-shadow: 0 2px 6px rgba(189, 179, 149, 0.4);
+}
+
+.aihint-wrapper {
+  background: #fffdf3;
+  border: 2px solid #f5e6a5;
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.08);
+  font-size: 25px;
+  line-height: 1.6;
+  color: #5a4a00;
+}
+
+.aihint-wrapper h6 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 4px 0 8px;
+  color: #c68a00;
+}
+
+.aihint-wrapper pre {
+  background: #fffaf0 !important;
+  border: 1px solid #f0d98c !important;
+  border-radius: 8px;
+  padding: 10px 12px !important;
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  font-size: 20px !important;
+  margin: 0 0 10px 0 !important;
+}
+
+#step2Container {
+  margin-top: 10px !important;
+}
+
+#showMoreHintBtn {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 18px;
+  border-radius: 10px;
+  font-size: 15px;
+  margin-top: 10px !important;
+}
+
+/* =========================================
+   SweetAlert / Modal / 表單
+   ========================================= */
+.swal2-popup {
+  font-family: "Chiron GoRound TC", "Noto Sans TC", sans-serif;
+  border-radius: 16px;
+}
+
+.modal-content {
+  border-radius: 20px;
+  border: 4px solid #D5C7A3;
+  background-color: #F6F0F0;
+}
+
+.form-control {
+  border-radius: 12px;
+  border: 2px solid #D5C7A3;
+}
+
+.form-control:focus {
+  border-color: #BDB395;
+  box-shadow: 0 0 8px rgba(189, 179, 149, 0.5);
+}
+
+/* =========================================
+   焦點效果
+   ========================================= */
+*:focus {
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(255, 224, 130, 0.6) !important;
+}
+
+/* =========================================
+   動畫
+   ========================================= */
+@keyframes pulseGreen {
+  0%   { box-shadow: 0 0 0 rgba(102, 187, 106, 0.3); }
+  50%  { box-shadow: 0 0 12px rgba(102, 187, 106, 0.8); }
+  100% { box-shadow: 0 0 0 rgba(102, 187, 106, 0.3); }
+}
+
+/* =========================================
+   縮排教學提示
+   ========================================= */
+.code-line.indent-warning::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border: 3px solid #ff5252;
+  border-radius: 10px;
+  box-shadow: 0 0 0 6px rgba(255, 82, 82, 0.35);
+  pointer-events: none;
+  animation: flashRedBox 0.9s ease forwards;
+  z-index: 10;
+}
+
+.code-line.indent-reference::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border: 3px solid #2196f3;
+  border-radius: 10px;
+  box-shadow: 0 0 0 6px rgba(33, 150, 243, 0.35);
+  pointer-events: none;
+  animation: flashBlueBox 0.9s ease forwards;
+  z-index: 9;
+}
+
+@keyframes flashRedBox {
+  0%   { opacity: 0; }
+  25%  { opacity: 1; }
+  75%  { opacity: 1; }
+  100% { opacity: 0; visibility: hidden; }
+}
+
+@keyframes flashBlueBox {
+  0%   { opacity: 0; }
+  25%  { opacity: 1; }
+  75%  { opacity: 1; }
+  100% { opacity: 0; visibility: hidden; }
+}
+
+.code-line.indent-warning,
+.code-line.indent-reference {
+  box-shadow: none !important;
+}
+
+/* =========================================
+   深色模式
+   ========================================= */
+html[data-theme="dark"] body {
+  background: linear-gradient(180deg, #1e1e1e 0%, #2c2c2c 100%);
+  color: #e0e0e0;
+}
+
+html[data-theme="dark"] .card {
+  background: #2e2e2e;
+  border-color: #555 !important;
+}
+
+html[data-theme="dark"] #codeList {
+  background: #1c1c1c;
+  border-color: #444 !important;
+}
+
+html[data-theme="dark"] .code-line {
+  background: #222;
+  color: #e5e5e5;
+  border-color: #333;
+}
+
+html[data-theme="dark"] .code-line.selected {
+  background-color: #3e3e2e !important;
+  border-color: #fbc02d !important;
+}
+
+html[data-theme="dark"] .btn-cute {
+  background: linear-gradient(to top, #fbc02d, #ffd54f);
+  color: #212121;
+}
+
+html[data-theme="dark"] .btn-submitting {
+  background: linear-gradient(to top, #43a047, #81c784);
+  border-color: #388e3c;
+  color: #e8f5e9;
+}
+
+/* =========================================
+   手機版
+   ========================================= */
+@media (max-width: 768px) {
+  .navbar {
+    padding: 0.8rem 1rem;
+  }
+
+  .navbar-brand {
+    font-size: 1rem;
+    white-space: nowrap;
+  }
+
+  .navbar-toggler {
+    padding: 0.6rem 0.8rem;
+    font-size: 1.25rem;
+  }
+
+  .navbar-collapse {
+    background: rgba(255, 255, 255, 0.92);
+    border-radius: 16px;
+    padding: 1rem;
+    margin-top: 0.5rem;
+  }
+
+  .navbar-nav .nav-link {
+    padding: 0.75rem 0.75rem;
+    font-size: 1.15rem;
+    border-radius: 10px;
+  }
+
+  #navArea {
+    width: 100%;
+    justify-content: center !important;
+    margin-top: 1rem;
+    text-align: center;
+  }
+
+  .card {
+    margin-bottom: 1rem;
+    border-width: 2px;
+    border-radius: 18px;
+  }
+
+  .btn-warning,
+  .btn-submitting,
+  .btn-secondary {
+    padding: 0.7rem 1rem;
+    font-size: 1rem;
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+
+  .nav-tabs .nav-link {
+    font-size: 1rem;
+    padding: 0.6rem 0.8rem;
+  }
+
+  #aiHintArea {
+    padding: 0.75rem;
+    font-size: 0.95rem;
+  }
+
+  .modal-content {
+    margin: 0 1rem;
+    border-width: 3px;
+    border-radius: 18px;
+  }
+
+  .form-control {
+    font-size: 1rem;
+    padding: 0.65rem;
+  }
+
+  .progress {
+    height: 1.2rem;
+  }
+
+  .progress-bar {
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .mindmap-box {
+    height: 260px;
+  }
+
+  .btn-cute,
+  .btn-nav {
+    padding: 6px 10px !important;
+    font-size: 14px !important;
+  }
+
+  .code-line,
+  #codeList pre code {
+    font-size: 15px !important;
+    line-height: 1.4 !important;
+  }
+
+  #codeList .code-line {
+    padding: 6px 10px !important;
+  }
+}
+
+/* =========================
+   🧪 測資卡片（LeetCode風格）
+   ========================= */
+
+#testPane .testcase-card {
+    background: #fff !important;
+    border: 3px solid #ffbc57 !important;
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 18px;
+}
+
+#testPane .testcase-title {
+    font-size: 15px !important;
+    font-weight: 800;
+    margin-bottom: 10px;
+}
+
+#testPane .testcase-block {
+    margin-top: 12px;
+    padding: 12px;
+    border-radius: 10px;
+}
+
+/* 輸入 */
+#testPane .testcase-block.input {
+    background: #e3f2fd !important;
+}
+
+/* 輸出 */
+#testPane .testcase-block.output {
+    background: #e8f5e9 !important;
+}
+
+/* 文字 */
+#testPane pre {
+    font-size: 15px !important;
+    line-height: 1.8;
+    margin: 0;
+}
