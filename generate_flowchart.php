@@ -15,6 +15,8 @@ $max_line = count($code_arr);
 $prompt = <<<EOT
 你是一位 Python 教學助教。
 請依照下方 Python 程式碼，逐行生成對應的流程圖 JSON（flowchart.js 格式）。
+Python 程式碼：
+```python{$code}```
 
 規範如下：
 1. 節點類型僅能使用：start、end、io、operation、decision。
@@ -34,7 +36,7 @@ $prompt = <<<EOT
     "nodes": [
       {"id":"1","type":"start","text":"開始","line":null},
       {"id":"2","type":"io","text":"輸入 n","line":1},
-      {"id":"3","type":"decision","text":"n 是否為偶數？","line":2},
+      {"id":"3","type":"decision","text":"","line":2},
       {"id":"4","type":"operation","text":"輸出偶數","line":3},
       {"id":"5","type":"operation","text":"輸出奇數","line":4},
       {"id":"6","type":"end","text":"結束","line":null}
@@ -50,8 +52,7 @@ $prompt = <<<EOT
   }
 }
 
-Python 程式碼：
-```python{$code}
+
 請直接輸出流程圖JSON，不要加入解釋、文字或 Markdown。
 EOT;
 

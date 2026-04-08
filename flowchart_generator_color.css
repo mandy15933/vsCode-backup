@@ -1,0 +1,211 @@
+
+html, body {
+    height: 100%;
+    margin: 0;
+}
+
+body {
+    font-family: "Chiron GoRound TC", "Noto Sans TC", sans-serif;
+    background: linear-gradient(180deg, #F6F0F0 0%, #F2E2B1 100%);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+    background-size: cover;
+    color: #4e342e;
+}
+
+.page-wrap {
+    min-height: 100vh;
+}
+
+.main-area {
+    min-height: calc(100vh - 110px);
+}
+
+.card {
+    border-radius: 18px;
+    overflow: hidden;
+    border: 2px solid #ffe082;
+    background: #fffef7;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+}
+
+.card-header {
+    font-weight: 700;
+    background: linear-gradient(to right, #ffecb3, #fff9c4);
+    border-bottom: 2px solid #ffe082;
+    color: #3e2723;
+}
+
+.form-label {
+    font-weight: 700;
+    color: #5d4037;
+}
+
+.form-control,
+.form-select {
+    border-radius: 12px;
+    border: 2px solid #d7c7a3;
+    box-shadow: none;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: #ffca28;
+    box-shadow: 0 0 0 0.2rem rgba(255, 202, 40, 0.22);
+}
+
+textarea.form-control {
+    resize: vertical;
+    min-height: 140px;
+    line-height: 1.6;
+}
+
+#sourceCode {
+    min-height: 280px;
+    font-family: "JetBrains Mono", "Courier New", monospace;
+    font-size: 15px;
+    background: #fffdfa;
+}
+
+#problemText {
+    min-height: 160px;
+    background: #fffdfa;
+}
+
+.btn-gold {
+    background: linear-gradient(to top, #D5C7A3, #F2E2B1);
+    border: 3px solid #BDB395;
+    color: #4e4032;
+    font-weight: bold;
+    border-radius: 14px;
+    box-shadow: inset 0 2px #fff, 0 5px 0 #BDB395, 0 10px 18px rgba(0,0,0,0.18);
+    transition: 0.2s;
+}
+
+.btn-gold:hover {
+    background: linear-gradient(to top, #F2E2B1, #FFF7DE);
+    transform: translateY(-2px);
+}
+
+.btn-green {
+    background: linear-gradient(to top, #9CC49C, #CFE5CF);
+    border: 3px solid #7FAF80;
+    color: #1b5e20;
+    font-weight: 700;
+    border-radius: 14px;
+    box-shadow: inset 0 2px #fff, 0 5px 0 #7FAF80, 0 10px 18px rgba(0,0,0,0.18);
+    transition: 0.2s;
+}
+
+.btn-green:hover {
+    background: linear-gradient(to top, #BFE0BF, #E8F4E8);
+    transform: translateY(-2px);
+}
+
+.btn-soft {
+    background: linear-gradient(to top, #E6E0D8, #F6F0F0);
+    border: 2px solid #BDB395;
+    color: #4e4032;
+    border-radius: 12px;
+    font-weight: 600;
+}
+
+.hint-box {
+    background: #fffaf0;
+    border: 1.5px solid #ffe0b2;
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 15px;
+    line-height: 1.7;
+}
+
+.preview-panel {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.flowchart-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.flowchart-canvas-wrap {
+    margin-top: 12px;
+    flex: 1;
+    min-height: 520px;
+    border: 2px dashed #ffd54f;
+    border-radius: 14px;
+    background: #fffef8;
+    overflow: hidden;
+    position: relative;
+}
+
+#flowchartArea {
+    width: 100%;
+    height: 100%;
+    min-height: 520px;
+    overflow: hidden;
+    cursor: grab;
+    background:
+        linear-gradient(90deg, rgba(255,224,130,0.09) 1px, transparent 1px),
+        linear-gradient(rgba(255,224,130,0.09) 1px, transparent 1px);
+    background-size: 24px 24px;
+    border-radius: 14px;
+}
+
+#flowchartArea svg {
+    transform-origin: 0 0;
+}
+
+.empty-state {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: #8d6e63;
+    padding: 24px;
+    pointer-events: none;
+    font-size: 18px;
+    line-height: 1.8;
+}
+
+.loading-box {
+    background: #fffdf3;
+    border: 2px solid #f5e6a5;
+    border-radius: 14px;
+    padding: 18px;
+    text-align: center;
+    color: #7b5e00;
+    font-weight: 700;
+}
+
+@media (max-width: 991px) {
+    .main-area {
+        min-height: auto;
+    }
+
+    .flowchart-canvas-wrap,
+    #flowchartArea {
+        min-height: 420px;
+    }
+}
+
+@media (max-width: 576px) {
+    #sourceCode {
+        min-height: 220px;
+        font-size: 14px;
+    }
+
+    #problemText {
+        min-height: 130px;
+    }
+
+    .flowchart-canvas-wrap,
+    #flowchartArea {
+        min-height: 340px;
+    }
+}
