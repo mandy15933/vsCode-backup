@@ -71,6 +71,7 @@ $role       = $_SESSION['role'] ?? ' '; // 預設學生
           <li class="nav-item"><a class="nav-link" href="add_question.php">➕ 新增題目</a></li>
           <li class="nav-item"><a class="nav-link" href="manage_test_groups.php">🗂 測驗題組</a></li>
           <li class="nav-item"><a class="nav-link" href="analysis_dashboard.php">📊 學習分析</a></li>
+          <li class="nav-item"><a class="nav-link" href="flowchart_generator.php">🔄 流程圖產生器</a></li>
         <?php elseif ($role === 'student'): ?>
           <li class="nav-item"><a class="nav-link" href="index.php">🏠 首頁</a></li>
           <li class="nav-item"><a class="nav-link" href="courses.php">🧩 單元列表</a></li>
